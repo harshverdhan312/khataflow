@@ -7,6 +7,8 @@ import 'package:khata_flow/features/ledger/presentation/ledger_screen.dart';
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
+import 'package:khata_flow/features/settlement/presentation/settlement_providers.dart';
+
 
 void main() {
   testWidgets('Ledger screen displays header, empty state, and purchases correctly', (tester) async {
@@ -43,6 +45,9 @@ void main() {
           ),
           merchantOutstandingStreamProvider('m1').overrideWith(
             (ref) => Stream.value(45000),
+          ),
+          unresolvedSettlementsForMerchantProvider('m1').overrideWith(
+            (ref) => Future.value([]),
           ),
         ],
         child: const MaterialApp(

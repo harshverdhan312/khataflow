@@ -5,6 +5,10 @@ import '../../../core/extensions/date_time_extensions.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/presentation/merchant_providers.dart';
+import '../../settlement/domain/settlement.dart';
+import '../../settlement/presentation/settlement_confirmation_sheet.dart';
+import '../../settlement/presentation/settlement_providers.dart';
+import '../../settlement/presentation/settlement_resolution_dialog.dart';
 import '../domain/purchase.dart';
 import 'add_purchase_sheet.dart';
 import 'ledger_providers.dart';
@@ -73,6 +77,7 @@ class LedgerScreen extends ConsumerWidget {
     final merchantAsync = ref.watch(merchantDetailProvider(merchantId));
     final purchasesAsync = ref.watch(merchantPurchasesStreamProvider(merchantId));
     final outstandingAsync = ref.watch(merchantOutstandingStreamProvider(merchantId));
+    final unresolvedAsync = ref.watch(unresolvedSettlementsForMerchantProvider(merchantId));
 
     return merchantAsync.when(
       data: (merchant) {
@@ -85,6 +90,10 @@ class LedgerScreen extends ConsumerWidget {
 
         final outstandingPaise = outstandingAsync.value ?? 0;
         final hasOutstanding = outstandingPaise > 0;
+        final purchases = purchasesAsync.value ?? [];
+        final unresolvedSettlements = unresolvedAsync.value ?? [];
+        final hasUnresolved = unresolvedSettlements.isNotEmpty;
+        final pendingSettlement = hasUnresolved ? unresolvedSettlements.first : null;
 
         return Scaffold(
           appBar: AppBar(
@@ -119,14 +128,18 @@ class LedgerScreen extends ConsumerWidget {
               // Merchant Header & Outstanding Banner
               _buildHeader(merchant, outstandingPaise, hasOutstanding),
 
+              // Unresolved Settlement Recovery Banner
+              if (pendingSettlement != null)
+                _buildUnresolvedBanner(context, merchant, pendingSettlement),
+
               // Purchases List
               Expanded(
                 child: purchasesAsync.when(
-                  data: (purchases) {
-                    if (purchases.isEmpty) {
+                  data: (purchasesList) {
+                    if (purchasesList.isEmpty) {
                       return _buildEmptyPurchasesState(context, merchant);
                     }
-                    return _buildPurchasesList(purchases);
+                    return _buildPurchasesList(purchasesList);
                   },
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (err, _) => Center(child: Text('Error loading ledger: $err')),
@@ -134,7 +147,14 @@ class LedgerScreen extends ConsumerWidget {
               ),
 
               // Bottom Action Bar
-              _buildBottomActionBar(context, merchant, outstandingPaise, hasOutstanding),
+              _buildBottomActionBar(
+                context,
+                merchant,
+                outstandingPaise,
+                hasOutstanding,
+                purchases.length,
+                pendingSettlement,
+              ),
             ],
           ),
         );
@@ -379,12 +399,77 @@ class LedgerScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildUnresolvedBanner(BuildContext context, Merchant merchant, Settlement settlement) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.pending_actions_outlined, size: 20, color: Colors.amber.shade800),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pending Settlement: ${CurrencyFormatter.formatPaise(settlement.amountPaise)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Initiated ${settlement.initiatedAt.toFormattedDateTime()}. Please confirm payment outcome.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () {
+              SettlementResolutionDialog.show(
+                context,
+                settlement: settlement,
+                merchantName: merchant.name,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber.shade800,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: const Size(60, 32),
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Resolve'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomActionBar(
     BuildContext context,
     Merchant merchant,
     int outstandingPaise,
     bool hasOutstanding,
+    int purchaseCount,
+    Settlement? pendingSettlement,
   ) {
+    final hasPendingSettlement = pendingSettlement != null;
+
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -430,27 +515,38 @@ class LedgerScreen extends ConsumerWidget {
             Expanded(
               flex: 6,
               child: ElevatedButton.icon(
-                onPressed: hasOutstanding
+                onPressed: hasPendingSettlement
                     ? () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Native UPI settlement for ${CurrencyFormatter.formatPaise(outstandingPaise)} to ${merchant.upiVpa} will be enabled in Milestone 3.',
-                            ),
-                          ),
+                        SettlementResolutionDialog.show(
+                          context,
+                          settlement: pendingSettlement,
+                          merchantName: merchant.name,
                         );
                       }
-                    : null,
-                icon: const Icon(Icons.payment),
+                    : (hasOutstanding
+                        ? () {
+                            SettlementConfirmationSheet.show(
+                              context,
+                              merchant: merchant,
+                              outstandingPaise: outstandingPaise,
+                              purchaseCount: purchaseCount,
+                            );
+                          }
+                        : null),
+                icon: Icon(hasPendingSettlement ? Icons.pending : Icons.payment),
                 label: Text(
-                  hasOutstanding
-                      ? 'Clear Dues — ${CurrencyFormatter.formatPaise(outstandingPaise)}'
-                      : 'All Cleared',
+                  hasPendingSettlement
+                      ? 'Resolve Pending'
+                      : (hasOutstanding
+                          ? 'Clear Dues — ${CurrencyFormatter.formatPaise(outstandingPaise)}'
+                          : 'All Cleared'),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.settledGreen,
+                  backgroundColor: hasPendingSettlement
+                      ? Colors.amber.shade800
+                      : AppColors.settledGreen,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: AppColors.borderLight,
                   padding: const EdgeInsets.symmetric(vertical: 14),

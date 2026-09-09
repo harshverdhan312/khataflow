@@ -24,4 +24,8 @@ extension DateTimeFormatting on DateTime {
     if (diffDays < 7) return '$diffDays days ago';
     return toShortDate();
   }
+
+  String toFormattedDateTime() {
+    return DateFormat('d MMM, h:mm a').format(this);
+  }
 }

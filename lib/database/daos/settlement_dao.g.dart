@@ -6,6 +6,7 @@ part of 'settlement_dao.dart';
 mixin _$SettlementDaoMixin on DatabaseAccessor<AppDatabase> {
   $SettlementsTable get settlements => attachedDatabase.settlements;
   $SettlementItemsTable get settlementItems => attachedDatabase.settlementItems;
+  $SyncQueueTable get syncQueue => attachedDatabase.syncQueue;
   SettlementDaoManager get managers => SettlementDaoManager(this);
 }
 
@@ -19,4 +20,6 @@ class SettlementDaoManager {
         _db.attachedDatabase,
         _db.settlementItems,
       );
+  $$SyncQueueTableTableManager get syncQueue =>
+      $$SyncQueueTableTableManager(_db.attachedDatabase, _db.syncQueue);
 }

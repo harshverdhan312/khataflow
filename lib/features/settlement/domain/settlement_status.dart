@@ -1,10 +1,9 @@
 enum SettlementStatus {
   initiated,
   upiLaunched,
-  success,
+  settled,
   failed,
-  unknown,
-  settled;
+  unknown;
 
   String toDbValue() {
     switch (this) {
@@ -12,14 +11,12 @@ enum SettlementStatus {
         return 'INITIATED';
       case SettlementStatus.upiLaunched:
         return 'UPI_LAUNCHED';
-      case SettlementStatus.success:
-        return 'SUCCESS';
+      case SettlementStatus.settled:
+        return 'SETTLED';
       case SettlementStatus.failed:
         return 'FAILED';
       case SettlementStatus.unknown:
         return 'UNKNOWN';
-      case SettlementStatus.settled:
-        return 'SETTLED';
     }
   }
 
@@ -29,19 +26,20 @@ enum SettlementStatus {
         return SettlementStatus.initiated;
       case 'UPI_LAUNCHED':
         return SettlementStatus.upiLaunched;
-      case 'SUCCESS':
-        return SettlementStatus.success;
+      case 'SETTLED':
+      case 'SUCCESS': // Map legacy/transient SUCCESS to SETTLED
+        return SettlementStatus.settled;
       case 'FAILED':
         return SettlementStatus.failed;
       case 'UNKNOWN':
         return SettlementStatus.unknown;
-      case 'SETTLED':
-        return SettlementStatus.settled;
       default:
         return SettlementStatus.unknown;
     }
   }
 
   bool get isTerminal => this == SettlementStatus.settled || this == SettlementStatus.failed;
-  bool get isSuccessful => this == SettlementStatus.settled || this == SettlementStatus.success;
+  bool get isSettled => this == SettlementStatus.settled;
+  bool get isUnresolved => this == SettlementStatus.initiated || this == SettlementStatus.upiLaunched || this == SettlementStatus.unknown;
 }
+
