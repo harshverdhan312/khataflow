@@ -79,7 +79,9 @@ void main() {
     await tester.enterText(find.widgetWithText(TextFormField, 'Store / Merchant Name *'), 'Sharma Super Store');
 
     // Submit form
-    await tester.tap(find.text('Save Changes'));
+    final saveButtonFinder = find.text('Save Changes');
+    await tester.ensureVisible(saveButtonFinder);
+    await tester.tap(saveButtonFinder);
     await tester.pumpAndSettle();
 
     // Verify update was sent to repository

@@ -8,4 +8,12 @@ abstract class ReceiptShareService {
     required String text,
     String? subject,
   });
+
+  Future<void> shareFile({
+    required String filePath,
+    required String mimeType,
+    String? subject,
+    String? text,
+  });
 }
+

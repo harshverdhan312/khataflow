@@ -17,6 +17,18 @@ class SettlementDao extends DatabaseAccessor<AppDatabase> with _$SettlementDaoMi
         .watch();
   }
 
+  Stream<List<SettlementEntity>> watchAllSettlements() {
+    return (select(settlements)
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.initiatedAt)]))
+        .watch();
+  }
+
+  Future<List<SettlementEntity>> getAllSettlements() {
+    return (select(settlements)
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.initiatedAt)]))
+        .get();
+  }
+
   Future<SettlementEntity?> getSettlementById(String id) {
     return (select(settlements)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
   }

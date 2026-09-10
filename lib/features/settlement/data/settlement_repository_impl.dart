@@ -2,10 +2,12 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import '../../../database/app_database.dart';
 import '../../../shared/models/sync_enums.dart';
+import '../../receipt/domain/settlement_receipt.dart';
 import '../domain/settlement.dart';
 import '../domain/settlement_item.dart';
 import '../domain/settlement_repository.dart';
 import '../domain/settlement_status.dart';
+
 
 class SettlementRepositoryImpl implements SettlementRepository {
   final AppDatabase _db;
@@ -203,6 +205,70 @@ class SettlementRepositoryImpl implements SettlementRepository {
   }
 
   @override
+  Future<SettlementReceipt?> getSettlementReceipt(String settlementId) async {
+    final entity = await _db.settlementDao.getSettlementById(settlementId);
+    if (entity == null) return null;
+
+    final status = SettlementStatus.fromDbValue(entity.status);
+    if (status != SettlementStatus.settled) {
+      return null;
+    }
+
+    final merchant = await _db.merchantDao.getMerchantById(entity.merchantId);
+    final merchantName = merchant?.name ?? 'Unknown Merchant';
+    final merchantUpiVpa = merchant?.upiVpa ?? '';
+
+    final itemEntities = await _db.settlementDao.getSettlementItems(settlementId);
+    final purchaseItems = <ReceiptPurchaseItem>[];
+
+    for (final item in itemEntities) {
+      final purchase = await _db.purchaseDao.getPurchaseById(item.purchaseId);
+      if (purchase != null) {
+        purchaseItems.add(
+          ReceiptPurchaseItem(
+            purchaseId: purchase.id,
+            note: purchase.note,
+            amountPaise: item.amountPaise,
+            purchaseDate: DateTime.fromMillisecondsSinceEpoch(purchase.purchaseDate),
+            category: purchase.category,
+          ),
+        );
+      } else {
+        purchaseItems.add(
+          ReceiptPurchaseItem(
+            purchaseId: item.purchaseId,
+            note: 'Settled Item',
+            amountPaise: item.amountPaise,
+            purchaseDate: DateTime.fromMillisecondsSinceEpoch(entity.initiatedAt),
+          ),
+        );
+      }
+    }
+
+    final totalSettledPaise = entity.amountPaise;
+    final settlementDate = entity.completedAt != null
+        ? DateTime.fromMillisecondsSinceEpoch(entity.completedAt!)
+        : DateTime.fromMillisecondsSinceEpoch(entity.initiatedAt);
+
+    return SettlementReceipt(
+      settlementId: entity.id,
+      merchantId: entity.merchantId,
+      merchantName: merchantName,
+      merchantUpiVpa: merchantUpiVpa,
+      amountPaise: entity.amountPaise,
+      status: entity.status,
+      settlementDate: settlementDate,
+      utr: (entity.utr != null && entity.utr!.isNotEmpty) ? entity.utr : null,
+      transactionId: (entity.transactionId != null && entity.transactionId!.isNotEmpty)
+          ? entity.transactionId
+          : null,
+      items: purchaseItems,
+      totalSettledPaise: totalSettledPaise,
+    );
+  }
+
+
+  @override
   Future<List<Settlement>> getUnresolvedSettlements({String? merchantId}) async {
     final entities = await _db.settlementDao.getUnresolvedSettlements(merchantId: merchantId);
     final results = <Settlement>[];
@@ -254,6 +320,47 @@ class SettlementRepositoryImpl implements SettlementRepository {
       }
       return settlements;
     });
+  }
+
+  @override
+  Stream<List<Settlement>> watchAllSettlements() {
+    return _db.settlementDao.watchAllSettlements().asyncMap((entities) async {
+      final settlements = <Settlement>[];
+      for (final entity in entities) {
+        final itemEntities = await _db.settlementDao.getSettlementItems(entity.id);
+        final items = itemEntities
+            .map(
+              (e) => SettlementItem(
+                settlementId: e.settlementId,
+                purchaseId: e.purchaseId,
+                amountPaise: e.amountPaise,
+              ),
+            )
+            .toList();
+        settlements.add(_mapEntityToDomain(entity, items));
+      }
+      return settlements;
+    });
+  }
+
+  @override
+  Future<List<Settlement>> getAllSettlements() async {
+    final entities = await _db.settlementDao.getAllSettlements();
+    final settlements = <Settlement>[];
+    for (final entity in entities) {
+      final itemEntities = await _db.settlementDao.getSettlementItems(entity.id);
+      final items = itemEntities
+          .map(
+            (e) => SettlementItem(
+              settlementId: e.settlementId,
+              purchaseId: e.purchaseId,
+              amountPaise: e.amountPaise,
+            ),
+          )
+          .toList();
+      settlements.add(_mapEntityToDomain(entity, items));
+    }
+    return settlements;
   }
 
   Settlement _mapEntityToDomain(SettlementEntity entity, List<SettlementItem> items) {

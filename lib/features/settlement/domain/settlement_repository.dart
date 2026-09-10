@@ -1,3 +1,4 @@
+import '../../receipt/domain/settlement_receipt.dart';
 import 'settlement.dart';
 import 'settlement_status.dart';
 
@@ -41,6 +42,10 @@ abstract class SettlementRepository {
   /// Retrieves a settlement by its unique ID with linked items.
   Future<Settlement?> getSettlementById(String settlementId);
 
+  /// Retrieves a complete receipt for a successfully SETTLED settlement.
+  /// Returns null if the settlement does not exist or is not in SETTLED status.
+  Future<SettlementReceipt?> getSettlementReceipt(String settlementId);
+
   /// Retrieves all unresolved settlements (INITIATED, UPI_LAUNCHED, or UNKNOWN), optionally filtered by merchant.
   Future<List<Settlement>> getUnresolvedSettlements({String? merchantId});
 
@@ -52,5 +57,12 @@ abstract class SettlementRepository {
 
   /// Streams all settlements for a merchant ordered chronologically.
   Stream<List<Settlement>> watchSettlementsForMerchant(String merchantId);
+
+  /// Streams all settlements across all merchants ordered chronologically descending.
+  Stream<List<Settlement>> watchAllSettlements();
+
+  /// Gets all settlements across all merchants ordered chronologically descending.
+  Future<List<Settlement>> getAllSettlements();
 }
+
 

@@ -170,13 +170,13 @@ class SettlementController extends StateNotifier<SettlementFlowState> {
   }
 
   /// Manually marks a settlement as SETTLED upon customer confirmation.
-  Future<void> recordSettlementAsSettled({
+  Future<bool> recordSettlementAsSettled({
     required String settlementId,
     required String merchantId,
     String? transactionId,
     String? utr,
   }) async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await settlementRepository.markSettlementSettled(
         settlementId: settlementId,
@@ -188,10 +188,13 @@ class SettlementController extends StateNotifier<SettlementFlowState> {
       ref.invalidate(unresolvedSettlementsForMerchantProvider(merchantId));
       ref.invalidate(allUnresolvedSettlementsProvider);
       state = state.copyWith(isLoading: false);
+      return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return false;
     }
   }
+
 
   /// Records a settlement as FAILED.
   Future<void> recordSettlementAsFailed({

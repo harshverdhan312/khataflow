@@ -121,7 +121,7 @@ class _AddPurchaseSheetState extends ConsumerState<AddPurchaseSheet> {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.cardDark,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
@@ -142,23 +142,25 @@ class _AddPurchaseSheetState extends ConsumerState<AddPurchaseSheet> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimaryDark,
                       ),
                     ),
                     Text(
                       'to ${widget.merchantName}\'s tab',
                       style: const TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondaryLight,
+                        color: AppColors.textSecondaryDark,
                       ),
                     ),
                   ],
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
+                  icon: const Icon(Icons.close, color: AppColors.textPrimaryDark),
                 ),
               ],
             ),
+
             const SizedBox(height: 20),
 
             // Amount Input

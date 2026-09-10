@@ -614,170 +614,194 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen>
         String statusLabel;
 
         if (isSettled) {
-          badgeBgColor = Colors.green.shade50;
-          badgeTextColor = Colors.green.shade800;
+          badgeBgColor = AppColors.settledGreen.withValues(alpha: 0.15);
+          badgeTextColor = AppColors.settledGreen;
           statusLabel = 'SETTLED';
         } else if (isFailed) {
-          badgeBgColor = Colors.red.shade50;
-          badgeTextColor = Colors.red.shade800;
+          badgeBgColor = AppColors.outstandingRed.withValues(alpha: 0.15);
+          badgeTextColor = AppColors.outstandingRed;
           statusLabel = 'FAILED';
         } else if (settlement.status == SettlementStatus.upiLaunched) {
-          badgeBgColor = Colors.amber.shade50;
-          badgeTextColor = Colors.amber.shade900;
+          badgeBgColor = AppColors.pendingAmber.withValues(alpha: 0.15);
+          badgeTextColor = AppColors.pendingAmber;
           statusLabel = 'UPI LAUNCHED';
         } else if (settlement.status == SettlementStatus.initiated) {
-          badgeBgColor = Colors.blue.shade50;
-          badgeTextColor = Colors.blue.shade800;
+          badgeBgColor = AppColors.primary.withValues(alpha: 0.15);
+          badgeTextColor = AppColors.primary;
           statusLabel = 'INITIATED';
         } else {
-          badgeBgColor = Colors.amber.shade50;
-          badgeTextColor = Colors.amber.shade900;
+          badgeBgColor = AppColors.pendingAmber.withValues(alpha: 0.15);
+          badgeTextColor = AppColors.pendingAmber;
           statusLabel = 'UNKNOWN';
         }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: badgeBgColor,
-                      borderRadius: BorderRadius.circular(10),
+        return InkWell(
+          onTap: isSettled ? () => context.push('/receipt/${settlement.id}') : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: badgeBgColor,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        isSettled
+                            ? Icons.check_circle_outline
+                            : (isFailed ? Icons.error_outline : Icons.pending_outlined),
+                        size: 20,
+                        color: badgeTextColor,
+                      ),
                     ),
-                    child: Icon(
-                      isSettled
-                          ? Icons.check_circle_outline
-                          : (isFailed ? Icons.error_outline : Icons.pending_outlined),
-                      size: 20,
-                      color: badgeTextColor,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              settlement.initiatedAt.toFormattedDate(),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: badgeBgColor,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: badgeTextColor,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                settlement.initiatedAt.toFormattedDate(),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimaryDark,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(
-                              settlement.completedAt != null
-                                  ? 'Settled at ${settlement.completedAt!.toFormattedDateTime()}'
-                                  : 'Initiated at ${settlement.initiatedAt.toFormattedDateTime()}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondaryLight,
-                              ),
-                            ),
-                            if (settlement.items.isNotEmpty) ...[
                               const SizedBox(width: 8),
-                              Text(
-                                '•  ${settlement.items.length} ${settlement.items.length == 1 ? 'item' : 'items'}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondaryLight,
-                                  fontWeight: FontWeight.w500,
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: badgeBgColor,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  statusLabel,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: badgeTextColor,
+                                  ),
                                 ),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Text(
+                                settlement.completedAt != null
+                                    ? 'Settled at ${settlement.completedAt!.toFormattedDateTime()}'
+                                    : 'Initiated at ${settlement.initiatedAt.toFormattedDateTime()}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondaryDark,
+                                ),
+                              ),
+                              if (settlement.items.isNotEmpty) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  '•  ${settlement.items.length} ${settlement.items.length == 1 ? 'item' : 'items'}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondaryDark,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (settlement.utr != null && settlement.utr!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'UTR: ${settlement.utr}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondaryDark,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
                           ],
+                          if (settlement.transactionId != null &&
+                              settlement.transactionId!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              'Txn ID: ${settlement.transactionId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondaryDark,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          CurrencyFormatter.formatPaise(settlement.amountPaise),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: isSettled ? AppColors.settledGreen : AppColors.textPrimaryDark,
+                          ),
                         ),
-                        if (settlement.utr != null && settlement.utr!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'UTR: ${settlement.utr}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondaryLight,
-                              fontFamily: 'monospace',
+                        if (isSettled) ...[
+                          const SizedBox(height: 6),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              context.push('/receipt/${settlement.id}');
+                            },
+                            icon: const Icon(Icons.receipt_long_rounded, size: 12),
+                            label: const Text('View Receipt'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.settledGreen,
+                              side: const BorderSide(color: AppColors.settledGreen, width: 1),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              minimumSize: const Size(60, 26),
+                              textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                             ),
                           ),
                         ],
-                        if (settlement.transactionId != null &&
-                            settlement.transactionId!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'Txn ID: ${settlement.transactionId}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textSecondaryLight,
-                              fontFamily: 'monospace',
+                        if (isUnresolved || isFailed) ...[
+                          const SizedBox(height: 6),
+                          ElevatedButton(
+                            onPressed: () {
+                              _showManualResolutionDialog(settlement, merchant.name);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isFailed ? AppColors.outstandingRed : AppColors.pendingAmber,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: const Size(60, 28),
+                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                             ),
+                            child: const Text('Resolve'),
                           ),
                         ],
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        CurrencyFormatter.formatPaise(settlement.amountPaise),
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isSettled ? AppColors.settledGreen : AppColors.textPrimaryLight,
-                        ),
-                      ),
-                      if (isUnresolved || isFailed) ...[
-                        const SizedBox(height: 6),
-                        ElevatedButton(
-                          onPressed: () {
-                            _showManualResolutionDialog(settlement, merchant.name);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isFailed ? Colors.red.shade700 : Colors.amber.shade800,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: const Size(60, 28),
-                            textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                          ),
-                          child: const Text('Resolve'),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
     );
+
   }
 
   Widget _buildEmptyPurchasesState(BuildContext context, Merchant merchant) {

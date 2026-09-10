@@ -102,5 +102,79 @@ void main() {
     // Verify Settlement Item
     expect(find.text('SETTLED'), findsOneWidget);
     expect(find.text('UTR: 423456789012'), findsOneWidget);
+    expect(find.text('View Receipt'), findsOneWidget);
+  });
+
+  testWidgets('Settlements tab only exposes View Receipt action for SETTLED settlements', (tester) async {
+    final now = DateTime.now();
+    final merchant = Merchant(
+      id: 'm1',
+      name: 'Sharma Kirana',
+      category: MerchantCategory.grocery,
+      upiVpa: 'sharma@upi',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final settledSettlement = Settlement(
+      id: 's_settled',
+      merchantId: 'm1',
+      amountPaise: 45000,
+      status: SettlementStatus.settled,
+      utr: '423456789012',
+      initiatedAt: now,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    final failedSettlement = Settlement(
+      id: 's_failed',
+      merchantId: 'm1',
+      amountPaise: 20000,
+      status: SettlementStatus.failed,
+      initiatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          merchantDetailProvider('m1').overrideWith(
+            (ref) => Future.value(merchant),
+          ),
+          merchantPurchasesStreamProvider('m1').overrideWith(
+            (ref) => Stream.value([]),
+          ),
+          merchantSettlementsStreamProvider('m1').overrideWith(
+            (ref) => Stream.value([settledSettlement, failedSettlement]),
+          ),
+          merchantOutstandingStreamProvider('m1').overrideWith(
+            (ref) => Stream.value(0),
+          ),
+          unresolvedSettlementsForMerchantProvider('m1').overrideWith(
+            (ref) => Future.value([]),
+          ),
+        ],
+        child: const MaterialApp(
+          home: LedgerScreen(merchantId: 'm1'),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    // Switch to settlements tab
+    await tester.tap(find.text('Settlements (2)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SETTLED'), findsOneWidget);
+    expect(find.text('FAILED'), findsOneWidget);
+
+    // Only 1 "View Receipt" button should be present (for the SETTLED settlement)
+    expect(find.text('View Receipt'), findsOneWidget);
   });
 }
+

@@ -5,6 +5,7 @@ import 'package:khata_flow/features/dashboard/domain/dashboard_summary.dart';
 import 'package:khata_flow/features/dashboard/presentation/dashboard_providers.dart';
 
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
+import 'package:khata_flow/features/transactions/presentation/transactions_providers.dart';
 
 void main() {
   testWidgets('KhataFlowApp boots up to dashboard screen', (WidgetTester tester) async {
@@ -20,6 +21,9 @@ void main() {
             ),
           ),
           inactiveMerchantsStreamProvider.overrideWith(
+            (ref) => Stream.value([]),
+          ),
+          allTransactionsStreamProvider.overrideWith(
             (ref) => Stream.value([]),
           ),
         ],

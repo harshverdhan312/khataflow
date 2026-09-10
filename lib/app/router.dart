@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/ledger/presentation/ledger_screen.dart';
 import '../features/merchant/presentation/add_merchant_screen.dart';
 import '../features/merchant/presentation/edit_merchant_screen.dart';
+import '../features/navigation/presentation/main_nav_screen.dart';
+import '../features/receipt/presentation/settlement_receipt_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -11,8 +12,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        name: 'dashboard',
-        builder: (context, state) => const DashboardScreen(),
+        name: 'home',
+        builder: (context, state) => const MainNavScreen(),
       ),
       GoRoute(
         path: '/merchant/add',
@@ -35,6 +36,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return LedgerScreen(merchantId: merchantId);
         },
       ),
+      GoRoute(
+        path: '/receipt/:settlementId',
+        name: 'settlementReceipt',
+        builder: (context, state) {
+          final settlementId = state.pathParameters['settlementId'] ?? '';
+          return SettlementReceiptScreen(settlementId: settlementId);
+        },
+      ),
     ],
   );
 });
+

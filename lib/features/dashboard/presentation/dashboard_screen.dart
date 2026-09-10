@@ -24,20 +24,10 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'KF',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
+            Image.asset(
+              'assets/branding/khataflow_icon.png',
+              height: 26,
+              width: 26,
             ),
             const SizedBox(width: 10),
             const Text(
@@ -214,15 +204,15 @@ class DashboardScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: AppColors.borderLight,
+                              color: AppColors.primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               merchant.category.displayName,
                               style: const TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondaryLight,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
                               ),
                             ),
                           ),
@@ -232,12 +222,13 @@ class DashboardScreen extends ConsumerWidget {
                               merchant.upiVpa,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: AppColors.textSecondaryLight,
+                                color: AppColors.textSecondaryDark,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+
                         ],
                       ),
                     ],

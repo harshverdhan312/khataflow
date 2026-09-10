@@ -136,14 +136,14 @@ class _AddMerchantScreenState extends ConsumerState<AddMerchantScreen> {
               ),
               const SizedBox(height: 16),
 
-              // UPI VPA
+              // UPI VPA TextFormField
               TextFormField(
                 controller: _vpaController,
                 decoration: const InputDecoration(
                   labelText: 'Verified UPI ID (VPA) *',
                   hintText: 'e.g. sharmakirana@okhdfcbank or 9876543210@paytm',
                   prefixIcon: Icon(Icons.qr_code),
-                  helperText: 'Required to clear dues via UPI later',
+                  helperText: 'Used to settle dues directly via UPI',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,

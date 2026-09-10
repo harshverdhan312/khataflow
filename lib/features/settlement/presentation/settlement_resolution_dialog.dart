@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../domain/settlement.dart';
@@ -85,7 +86,7 @@ class _SettlementResolutionDialogState
     final utrText = _utrController.text.trim();
     final txnText = _txnIdController.text.trim();
 
-    await controller.recordSettlementAsSettled(
+    final success = await controller.recordSettlementAsSettled(
       settlementId: widget.settlement.id,
       merchantId: widget.settlement.merchantId,
       utr: utrText.isNotEmpty ? utrText : null,
@@ -93,6 +94,20 @@ class _SettlementResolutionDialogState
     );
 
     if (!mounted) return;
+    setState(() => _isProcessing = false);
+
+    if (!success) {
+      final error = ref.read(settlementControllerProvider).errorMessage ??
+          'Failed to record settlement in database.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: AppColors.outstandingRed,
+        ),
+      );
+      return;
+    }
+
     Navigator.of(context).pop();
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -103,7 +118,15 @@ class _SettlementResolutionDialogState
         backgroundColor: AppColors.settledGreen,
       ),
     );
+
+    try {
+      context.push('/receipt/${widget.settlement.id}');
+    } catch (_) {
+      // Ignored if GoRouter is not in test context
+    }
   }
+
+
 
   Future<void> _handleRecordFailed() async {
     setState(() => _isProcessing = true);
@@ -234,9 +257,10 @@ class _SettlementResolutionDialogState
                       'KhataFlow does not hold funds or independently verify bank transfers. Please confirm the result from your UPI app.',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.black87,
+                        color: AppColors.textPrimaryDark,
                       ),
                     ),
+
                   ),
                 ],
               ),

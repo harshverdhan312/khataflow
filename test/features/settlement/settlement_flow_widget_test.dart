@@ -8,7 +8,9 @@ import 'package:khata_flow/features/ledger/presentation/ledger_screen.dart';
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
+import 'package:khata_flow/features/receipt/domain/settlement_receipt.dart';
 import 'package:khata_flow/features/settlement/domain/settlement.dart';
+
 import 'package:khata_flow/features/settlement/domain/settlement_repository.dart';
 import 'package:khata_flow/features/settlement/domain/settlement_status.dart';
 import 'package:khata_flow/features/settlement/presentation/settlement_confirmation_sheet.dart';
@@ -83,7 +85,11 @@ class MockSettlementRepository implements SettlementRepository {
   Future<Settlement?> getSettlementById(String settlementId) async => null;
 
   @override
+  Future<SettlementReceipt?> getSettlementReceipt(String settlementId) async => null;
+
+  @override
   Future<List<Settlement>> getUnresolvedSettlements({String? merchantId}) async => [];
+
 
   @override
   Future<bool> hasUnresolvedSettlementForMerchant(String merchantId) async => false;
@@ -93,6 +99,12 @@ class MockSettlementRepository implements SettlementRepository {
 
   @override
   Stream<List<Settlement>> watchSettlementsForMerchant(String merchantId) => Stream.value([]);
+
+  @override
+  Stream<List<Settlement>> watchAllSettlements() => Stream.value([]);
+
+  @override
+  Future<List<Settlement>> getAllSettlements() async => [];
 }
 
 void main() {
