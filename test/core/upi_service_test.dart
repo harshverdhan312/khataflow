@@ -126,4 +126,102 @@ void main() {
       });
     });
   });
+
+  group('UpiLaunchResult Data Model & Response Helpers', () {
+    test('captures complete UPI response bundle correctly', () {
+      const result = UpiLaunchResult(
+        status: UpiLaunchStatus.launched,
+        rawResponse: 'txnId=AXI123&responseCode=00&Status=SUCCESS&ApprovalRefNo=423456789012&txnRef=Settlement_via_App',
+        upiStatus: 'SUCCESS',
+        txnId: 'AXI123',
+        approvalRefNo: '423456789012',
+        responseCode: '00',
+        txnRef: 'Settlement_via_App',
+        statusMessage: 'Flow completed',
+      );
+
+      expect(result.isLaunched, isTrue);
+      expect(result.hasTransactionDetails, isTrue);
+      expect(result.upiStatus, equals('SUCCESS'));
+      expect(result.txnId, equals('AXI123'));
+      expect(result.approvalRefNo, equals('423456789012'));
+      expect(result.responseCode, equals('00'));
+      expect(result.txnRef, equals('Settlement_via_App'));
+    });
+
+    test('handles UPI response with only Status', () {
+      const result = UpiLaunchResult(
+        status: UpiLaunchStatus.launched,
+        upiStatus: 'SUCCESS',
+      );
+
+      expect(result.isLaunched, isTrue);
+      expect(result.hasTransactionDetails, isFalse);
+      expect(result.approvalRefNo, isNull);
+      expect(result.txnId, isNull);
+    });
+
+    test('handles UPI response with missing optional fields', () {
+      const result = UpiLaunchResult(
+        status: UpiLaunchStatus.launched,
+        upiStatus: 'SUBMITTED',
+        approvalRefNo: '987654321012',
+      );
+
+      expect(result.isLaunched, isTrue);
+      expect(result.hasTransactionDetails, isTrue);
+      expect(result.approvalRefNo, equals('987654321012'));
+      expect(result.txnId, isNull);
+      expect(result.responseCode, isNull);
+    });
+
+    test('handles empty or null response safely', () {
+      const result = UpiLaunchResult(
+        status: UpiLaunchStatus.launched,
+      );
+
+      expect(result.isLaunched, isTrue);
+      expect(result.hasTransactionDetails, isFalse);
+      expect(result.rawResponse, isNull);
+      expect(result.upiStatus, isNull);
+    });
+
+    test('handles canceled Activity Result', () {
+      const result = UpiLaunchResult(
+        status: UpiLaunchStatus.launched,
+        upiStatus: 'CANCELED',
+        statusMessage: 'User canceled payment in UPI app',
+      );
+
+      expect(result.isLaunched, isTrue);
+      expect(result.hasTransactionDetails, isFalse);
+      expect(result.upiStatus, equals('CANCELED'));
+    });
+
+    test('handles unexpected response values gracefully', () {
+      const result = UpiLaunchResult(
+        status: UpiLaunchStatus.launched,
+        rawResponse: 'UNKNOWN_RANDOM_BLOB_FROM_PSP',
+        upiStatus: 'UNKNOWN_STATUS',
+      );
+
+      expect(result.isLaunched, isTrue);
+      expect(result.hasTransactionDetails, isFalse);
+      expect(result.upiStatus, equals('UNKNOWN_STATUS'));
+    });
+
+    test('handles noAppInstalled and launchFailed statuses', () {
+      const noApp = UpiLaunchResult(
+        status: UpiLaunchStatus.noAppInstalled,
+        statusMessage: 'No compatible UPI app',
+      );
+      expect(noApp.isLaunched, isFalse);
+
+      const failed = UpiLaunchResult(
+        status: UpiLaunchStatus.launchFailed,
+        statusMessage: 'Intent failed',
+      );
+      expect(failed.isLaunched, isFalse);
+    });
+  });
 }

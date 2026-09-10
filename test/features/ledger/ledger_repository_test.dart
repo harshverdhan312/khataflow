@@ -7,6 +7,8 @@ import 'package:khata_flow/features/ledger/domain/purchase.dart';
 import 'package:khata_flow/features/merchant/data/merchant_repository_impl.dart';
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
+import 'package:khata_flow/features/settlement/data/settlement_repository_impl.dart';
+import 'package:khata_flow/features/settlement/domain/settlement_status.dart';
 import 'package:khata_flow/shared/models/sync_enums.dart';
 
 void main() {
@@ -160,6 +162,101 @@ void main() {
       final purchasesA = await ledgerRepository.getPurchases(merchantA.id);
       expect(purchasesA.length, 2);
       expect(purchasesA.first.note, 'Vegetables'); // Reverse chronological
+    });
+
+    test('M4.1 Core Loop: ₹100 + ₹200 + ₹300 = ₹600, settle ₹600 -> outstanding ₹0, purchases preserved as settled', () async {
+      final settlementRepository = SettlementRepositoryImpl(db);
+      final now = DateTime.now();
+
+      // 1. Add 3 purchases for Merchant A
+      final p1 = await ledgerRepository.addPurchase(
+        CreatePurchaseInput(
+          merchantId: merchantA.id,
+          amountPaise: 10000, // ₹100
+          note: 'Milk',
+          purchaseDate: now,
+        ),
+      );
+      final p2 = await ledgerRepository.addPurchase(
+        CreatePurchaseInput(
+          merchantId: merchantA.id,
+          amountPaise: 20000, // ₹200
+          note: 'Groceries',
+          purchaseDate: now.add(const Duration(minutes: 10)),
+        ),
+      );
+      final p3 = await ledgerRepository.addPurchase(
+        CreatePurchaseInput(
+          merchantId: merchantA.id,
+          amountPaise: 30000, // ₹300
+          note: 'Snacks',
+          purchaseDate: now.add(const Duration(minutes: 20)),
+        ),
+      );
+
+      // Add 1 purchase for Merchant B to test isolation
+      await ledgerRepository.addPurchase(
+        CreatePurchaseInput(
+          merchantId: merchantB.id,
+          amountPaise: 15000, // ₹150
+          note: 'Laundry',
+          purchaseDate: now,
+        ),
+      );
+
+      // 2. Verify outstanding dues before settlement
+      var outstandingA = await ledgerRepository.getOutstandingAmount(merchantA.id);
+      expect(outstandingA, 60000); // ₹600.00
+      var outstandingB = await ledgerRepository.getOutstandingAmount(merchantB.id);
+      expect(outstandingB, 15000); // ₹150.00
+      var totalOutstanding = await ledgerRepository.getTotalOutstanding();
+      expect(totalOutstanding, 75000); // ₹750.00
+
+      // Verify purchases before settlement have isSettled = false
+      var purchasesA = await ledgerRepository.getPurchases(merchantA.id);
+      expect(purchasesA.length, 3);
+      expect(purchasesA.every((p) => !p.isSettled), true);
+
+      // 3. Initiate and confirm settlement for ₹600
+      final settlement = await settlementRepository.initiateSettlement(
+        merchantId: merchantA.id,
+        purchaseIds: [p1.id, p2.id, p3.id],
+      );
+      expect(settlement.amountPaise, 60000);
+
+      await settlementRepository.markSettlementSettled(
+        settlementId: settlement.id,
+        utr: '425612345678',
+        transactionId: 'TXN998877',
+      );
+
+      // 4. Verify outstanding dues after settlement
+      outstandingA = await ledgerRepository.getOutstandingAmount(merchantA.id);
+      expect(outstandingA, 0); // ₹0.00
+
+      // Merchant B must remain completely unaffected
+      outstandingB = await ledgerRepository.getOutstandingAmount(merchantB.id);
+      expect(outstandingB, 15000); // ₹150.00
+
+      totalOutstanding = await ledgerRepository.getTotalOutstanding();
+      expect(totalOutstanding, 15000); // ₹150.00
+
+      // 5. Verify historical purchases are NOT deleted and are marked isSettled = true
+      purchasesA = await ledgerRepository.getPurchases(merchantA.id);
+      expect(purchasesA.length, 3);
+      expect(purchasesA.every((p) => p.isSettled), true);
+
+      // Verify unsettled purchases query returns empty for Merchant A
+      final unsettledA = await ledgerRepository.getUnsettledPurchases(merchantA.id);
+      expect(unsettledA.isEmpty, true);
+
+      // Verify settlement history stream contains the settlement with linked items
+      final settlementsA = await settlementRepository.watchSettlementsForMerchant(merchantA.id).first;
+      expect(settlementsA.length, 1);
+      expect(settlementsA.first.amountPaise, 60000);
+      expect(settlementsA.first.status, SettlementStatus.settled);
+      expect(settlementsA.first.utr, '425612345678');
+      expect(settlementsA.first.items.length, 3);
     });
   });
 }

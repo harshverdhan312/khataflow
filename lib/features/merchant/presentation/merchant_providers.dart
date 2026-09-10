@@ -14,6 +14,11 @@ final activeMerchantsStreamProvider = StreamProvider<List<Merchant>>((ref) {
   return repo.watchActiveMerchants();
 });
 
+final inactiveMerchantsStreamProvider = StreamProvider<List<Merchant>>((ref) {
+  final repo = ref.watch(merchantRepositoryProvider);
+  return repo.watchInactiveMerchants();
+});
+
 final merchantDetailProvider = FutureProvider.family<Merchant?, String>((ref, id) {
   final repo = ref.watch(merchantRepositoryProvider);
   return repo.getMerchantById(id);
@@ -60,10 +65,34 @@ class AddMerchantController extends StateNotifier<AddMerchantState> {
     }
   }
 
+  Future<bool> updateMerchant(Merchant merchant) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.updateMerchant(merchant);
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return false;
+    }
+  }
+
   Future<bool> deactivateMerchant(String merchantId) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await _repository.deactivateMerchant(merchantId);
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+      return false;
+    }
+  }
+
+  Future<bool> reactivateMerchant(String merchantId) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _repository.reactivateMerchant(merchantId);
       state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {

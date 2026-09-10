@@ -10,6 +10,7 @@ class Purchase {
   final DateTime createdAt;
   final DateTime updatedAt;
   final SyncStatus syncStatus;
+  final bool isSettled;
 
   const Purchase({
     required this.id,
@@ -21,6 +22,7 @@ class Purchase {
     required this.createdAt,
     required this.updatedAt,
     this.syncStatus = SyncStatus.pending,
+    this.isSettled = false,
   });
 
   Purchase copyWith({
@@ -33,6 +35,7 @@ class Purchase {
     DateTime? createdAt,
     DateTime? updatedAt,
     SyncStatus? syncStatus,
+    bool? isSettled,
   }) {
     return Purchase(
       id: id ?? this.id,
@@ -44,6 +47,7 @@ class Purchase {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       syncStatus: syncStatus ?? this.syncStatus,
+      isSettled: isSettled ?? this.isSettled,
     );
   }
 }

@@ -237,8 +237,22 @@ class SettlementRepositoryImpl implements SettlementRepository {
 
   @override
   Stream<List<Settlement>> watchSettlementsForMerchant(String merchantId) {
-    return _db.settlementDao.watchSettlementsForMerchant(merchantId).map((entities) {
-      return entities.map((entity) => _mapEntityToDomain(entity, const [])).toList();
+    return _db.settlementDao.watchSettlementsForMerchant(merchantId).asyncMap((entities) async {
+      final settlements = <Settlement>[];
+      for (final entity in entities) {
+        final itemEntities = await _db.settlementDao.getSettlementItems(entity.id);
+        final items = itemEntities
+            .map(
+              (e) => SettlementItem(
+                settlementId: e.settlementId,
+                purchaseId: e.purchaseId,
+                amountPaise: e.amountPaise,
+              ),
+            )
+            .toList();
+        settlements.add(_mapEntityToDomain(entity, items));
+      }
+      return settlements;
     });
   }
 

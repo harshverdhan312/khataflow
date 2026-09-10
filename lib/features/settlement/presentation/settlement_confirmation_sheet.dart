@@ -5,6 +5,7 @@ import '../../../core/services/upi_service.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../merchant/domain/merchant.dart';
 import 'settlement_providers.dart';
+
 import 'settlement_resolution_dialog.dart';
 
 class SettlementConfirmationSheet extends ConsumerStatefulWidget {
@@ -95,11 +96,14 @@ class _SettlementConfirmationSheetState
         return;
       }
 
-      // Show resolution dialog to allow user to record outcome
+      // Show resolution dialog with opportunistically captured UPI response details
       SettlementResolutionDialog.show(
         context,
         settlement: activeSettlement,
         merchantName: widget.merchant.name,
+        initialUtr: launchResult?.approvalRefNo,
+        initialTxnId: launchResult?.txnId,
+        initialUpiStatus: launchResult?.upiStatus,
       );
     }
   }

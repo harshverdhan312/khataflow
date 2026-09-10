@@ -10,8 +10,11 @@ import 'package:khata_flow/features/merchant/presentation/merchant_providers.dar
 import 'package:khata_flow/features/settlement/presentation/settlement_providers.dart';
 
 
+import 'package:khata_flow/features/settlement/domain/settlement.dart';
+import 'package:khata_flow/features/settlement/domain/settlement_status.dart';
+
 void main() {
-  testWidgets('Ledger screen displays header, empty state, and purchases correctly', (tester) async {
+  testWidgets('Ledger screen displays header, tabs, purchases, and settlements correctly', (tester) async {
     final now = DateTime.now();
     final merchant = Merchant(
       id: 'm1',
@@ -32,6 +35,19 @@ void main() {
       purchaseDate: now,
       createdAt: now,
       updatedAt: now,
+      isSettled: false,
+    );
+
+    final settlement = Settlement(
+      id: 's1',
+      merchantId: 'm1',
+      amountPaise: 45000,
+      status: SettlementStatus.settled,
+      utr: '423456789012',
+      initiatedAt: now,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
     );
 
     await tester.pumpWidget(
@@ -42,6 +58,9 @@ void main() {
           ),
           merchantPurchasesStreamProvider('m1').overrideWith(
             (ref) => Stream.value([purchase]),
+          ),
+          merchantSettlementsStreamProvider('m1').overrideWith(
+            (ref) => Stream.value([settlement]),
           ),
           merchantOutstandingStreamProvider('m1').overrideWith(
             (ref) => Stream.value(45000),
@@ -66,9 +85,22 @@ void main() {
     expect(find.text('CURRENT OUTSTANDING'), findsOneWidget);
     expect(find.text('Grocery'), findsOneWidget);
 
+    // Verify Tabs
+    expect(find.text('Purchases (1)'), findsOneWidget);
+    expect(find.text('Settlements (1)'), findsOneWidget);
+
     // Verify purchase
     expect(find.text('Vegetables'), findsOneWidget);
     expect(find.text('₹450'), findsWidgets);
     expect(find.text('Daily'), findsOneWidget);
+    expect(find.text('Outstanding'), findsOneWidget);
+
+    // Switch to Settlements tab
+    await tester.tap(find.text('Settlements (1)'));
+    await tester.pumpAndSettle();
+
+    // Verify Settlement Item
+    expect(find.text('SETTLED'), findsOneWidget);
+    expect(find.text('UTR: 423456789012'), findsOneWidget);
   });
 }

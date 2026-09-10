@@ -9,6 +9,7 @@ import 'package:khata_flow/features/merchant/domain/merchant.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
 import 'package:khata_flow/features/settlement/domain/settlement.dart';
+import 'package:khata_flow/features/settlement/domain/settlement_repository.dart';
 import 'package:khata_flow/features/settlement/domain/settlement_status.dart';
 import 'package:khata_flow/features/settlement/presentation/settlement_confirmation_sheet.dart';
 import 'package:khata_flow/features/settlement/presentation/settlement_providers.dart';
@@ -46,6 +47,54 @@ class MockUpiService implements UpiService {
   }
 }
 
+class MockSettlementRepository implements SettlementRepository {
+  bool markSettledCalled = false;
+  String? recordedUtr;
+  String? recordedTxnId;
+
+  @override
+  Future<Settlement> initiateSettlement({required String merchantId, required List<String> purchaseIds}) async => throw UnimplementedError();
+
+  @override
+  Future<void> updateSettlementStatus({
+    required String settlementId,
+    required SettlementStatus status,
+    String? transactionId,
+    String? utr,
+  }) async {}
+
+  @override
+  Future<void> markUpiLaunched(String settlementId) async {}
+
+  @override
+  Future<void> markSettlementSettled({required String settlementId, String? transactionId, String? utr}) async {
+    markSettledCalled = true;
+    recordedUtr = utr;
+    recordedTxnId = transactionId;
+  }
+
+  @override
+  Future<void> markSettlementFailed({required String settlementId, required String reason}) async {}
+
+  @override
+  Future<void> markSettlementUnknown({required String settlementId}) async {}
+
+  @override
+  Future<Settlement?> getSettlementById(String settlementId) async => null;
+
+  @override
+  Future<List<Settlement>> getUnresolvedSettlements({String? merchantId}) async => [];
+
+  @override
+  Future<bool> hasUnresolvedSettlementForMerchant(String merchantId) async => false;
+
+  @override
+  Future<List<String>> getUnresolvedPurchaseIds(String merchantId) async => [];
+
+  @override
+  Stream<List<Settlement>> watchSettlementsForMerchant(String merchantId) => Stream.value([]);
+}
+
 void main() {
   const merchantId = 'm_widget_1';
   final now = DateTime.now();
@@ -67,6 +116,7 @@ void main() {
           overrides: [
             merchantDetailProvider(merchantId).overrideWith((ref) => Future.value(mockMerchant)),
             merchantPurchasesStreamProvider(merchantId).overrideWith((ref) => Stream.value([])),
+            merchantSettlementsStreamProvider(merchantId).overrideWith((ref) => Stream.value([])),
             merchantOutstandingStreamProvider(merchantId).overrideWith((ref) => Stream.value(0)),
             unresolvedSettlementsForMerchantProvider(merchantId).overrideWith((ref) => Future.value([])),
           ],
@@ -99,6 +149,7 @@ void main() {
           overrides: [
             merchantDetailProvider(merchantId).overrideWith((ref) => Future.value(mockMerchant)),
             merchantPurchasesStreamProvider(merchantId).overrideWith((ref) => Stream.value([purchase])),
+            merchantSettlementsStreamProvider(merchantId).overrideWith((ref) => Stream.value([])),
             merchantOutstandingStreamProvider(merchantId).overrideWith((ref) => Stream.value(25000)),
             unresolvedSettlementsForMerchantProvider(merchantId).overrideWith((ref) => Future.value([])),
           ],
@@ -133,7 +184,7 @@ void main() {
       expect(find.textContaining('Open UPI App — ₹250'), findsOneWidget);
     });
 
-    testWidgets('Settlement Resolution Dialog renders with optional UTR and decision buttons', (tester) async {
+    testWidgets('Settlement Resolution Dialog renders with M3.1A 1-tap confirmation and expandable reference', (tester) async {
       final settlement = Settlement(
         id: 's_test_dialog',
         merchantId: merchantId,
@@ -158,13 +209,20 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Record Settlement'), findsOneWidget);
-      expect(find.text('Sharma Sweets'), findsOneWidget);
-      expect(find.text('₹250'), findsOneWidget);
-      expect(find.text('UPI Reference / UTR (Optional)'), findsOneWidget);
-      expect(find.text('Record Payment (Mark Settled)'), findsOneWidget);
+      expect(find.text('Did you complete the payment?'), findsOneWidget);
+      expect(find.textContaining('₹250 to Sharma Sweets'), findsOneWidget);
+      expect(find.text('+ Add payment reference (optional)'), findsOneWidget);
+      expect(find.text('Yes, Payment Completed'), findsOneWidget);
       expect(find.text('Payment Failed'), findsOneWidget);
       expect(find.text('Decide Later'), findsOneWidget);
+
+      // Expand optional reference fields
+      await tester.tap(find.text('+ Add payment reference (optional)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hide payment reference'), findsOneWidget);
+      expect(find.text('UPI Reference / UTR (Optional)'), findsOneWidget);
+      expect(find.text('Transaction ID / Note (Optional)'), findsOneWidget);
     });
 
     testWidgets('Unresolved settlement banner is displayed on ledger screen with Resolve button', (tester) async {
@@ -183,6 +241,7 @@ void main() {
           overrides: [
             merchantDetailProvider(merchantId).overrideWith((ref) => Future.value(mockMerchant)),
             merchantPurchasesStreamProvider(merchantId).overrideWith((ref) => Stream.value([])),
+            merchantSettlementsStreamProvider(merchantId).overrideWith((ref) => Stream.value([])),
             merchantOutstandingStreamProvider(merchantId).overrideWith((ref) => Stream.value(10000)),
             unresolvedSettlementsForMerchantProvider(merchantId).overrideWith((ref) => Future.value([pendingSettlement])),
           ],
@@ -205,6 +264,162 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.byType(SettlementResolutionDialog), findsOneWidget);
+      expect(find.text('Did you complete the payment?'), findsOneWidget);
+    });
+
+    testWidgets('Tapping Open UPI App dismisses sheet and does not synchronously pop resolution dialog', (tester) async {
+      final mockUpi = MockUpiService();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            upiServiceProvider.overrideWithValue(mockUpi),
+            merchantDetailProvider(merchantId).overrideWith((ref) => Future.value(mockMerchant)),
+            unresolvedSettlementsForMerchantProvider(merchantId).overrideWith((ref) => Future.value([])),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SettlementConfirmationSheet(
+                merchant: mockMerchant,
+                outstandingPaise: 50000,
+                purchaseCount: 2,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('Open UPI App — ₹500'), findsOneWidget);
+      expect(find.byType(SettlementResolutionDialog), findsNothing);
+    });
+
+    testWidgets('SettlementResolutionDialog auto-expands and pre-fills captured UTR and TxnId', (tester) async {
+      final settlement = Settlement(
+        id: 's_test_prefill',
+        merchantId: merchantId,
+        amountPaise: 25000,
+        status: SettlementStatus.upiLaunched,
+        initiatedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: SettlementResolutionDialog(
+              settlement: settlement,
+              merchantName: 'Sharma Sweets',
+              initialUtr: '423456789012',
+              initialTxnId: 'AXI123456789',
+              initialUpiStatus: 'SUCCESS',
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      // Should automatically expand and show pre-filled values
+      expect(find.text('423456789012'), findsOneWidget);
+      expect(find.text('AXI123456789'), findsOneWidget);
+      expect(find.text('Hide payment reference'), findsOneWidget);
+    });
+
+    testWidgets('SettlementResolutionDialog.show prevents duplicate dialogs when already showing', (tester) async {
+      SettlementResolutionDialog.isShowing = false;
+      final settlement = Settlement(
+        id: 's_test_dup',
+        merchantId: merchantId,
+        amountPaise: 10000,
+        status: SettlementStatus.upiLaunched,
+        initiatedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () {
+                    // Trigger first dialog
+                    SettlementResolutionDialog.show(
+                      context,
+                      settlement: settlement,
+                      merchantName: 'Sharma Sweets',
+                    );
+                    // Attempt duplicate trigger immediately
+                    SettlementResolutionDialog.show(
+                      context,
+                      settlement: settlement,
+                      merchantName: 'Sharma Sweets',
+                    );
+                  },
+                  child: const Text('Open Dialog'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Dialog'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Expect exactly one dialog instance
+      expect(find.byType(SettlementResolutionDialog), findsOneWidget);
+    });
+
+    testWidgets('User confirmation records settlement as SETTLED with optional metadata', (tester) async {
+      SettlementResolutionDialog.isShowing = false;
+      final mockRepo = MockSettlementRepository();
+
+      final settlement = Settlement(
+        id: 's_test_confirm',
+        merchantId: merchantId,
+        amountPaise: 25000,
+        status: SettlementStatus.upiLaunched,
+        initiatedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settlementRepositoryProvider.overrideWithValue(mockRepo),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SettlementResolutionDialog(
+                settlement: settlement,
+                merchantName: 'Sharma Sweets',
+                initialUtr: '423456789012',
+                initialTxnId: 'TXN123',
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Yes, Payment Completed'), findsOneWidget);
+      await tester.tap(find.text('Yes, Payment Completed'));
+      await tester.pumpAndSettle();
+
+      expect(mockRepo.markSettledCalled, isTrue);
+      expect(mockRepo.recordedUtr, equals('423456789012'));
+      expect(mockRepo.recordedTxnId, equals('TXN123'));
     });
   });
 }

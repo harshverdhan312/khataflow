@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/extensions/date_time_extensions.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/presentation/merchant_providers.dart';
 import '../../settlement/domain/settlement.dart';
+import '../../settlement/domain/settlement_status.dart';
 import '../../settlement/presentation/settlement_confirmation_sheet.dart';
 import '../../settlement/presentation/settlement_providers.dart';
 import '../../settlement/presentation/settlement_resolution_dialog.dart';
@@ -13,7 +15,7 @@ import '../domain/purchase.dart';
 import 'add_purchase_sheet.dart';
 import 'ledger_providers.dart';
 
-class LedgerScreen extends ConsumerWidget {
+class LedgerScreen extends ConsumerStatefulWidget {
   final String merchantId;
 
   const LedgerScreen({
@@ -21,7 +23,82 @@ class LedgerScreen extends ConsumerWidget {
     required this.merchantId,
   });
 
-  Future<void> _confirmDeactivation(BuildContext context, WidgetRef ref, Merchant merchant) async {
+  @override
+  ConsumerState<LedgerScreen> createState() => _LedgerScreenState();
+}
+
+class _LedgerScreenState extends ConsumerState<LedgerScreen>
+    with WidgetsBindingObserver {
+  bool _isResolutionDialogShowing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // If a native UPI intent is actively awaiting ActivityResult over MethodChannel,
+      // allow the authoritative MethodChannel callback to handle the dialog with metadata.
+      final isLaunchInFlight = ref.read(settlementControllerProvider).isLoading;
+      if (!isLaunchInFlight) {
+        _checkAndPromptUnresolvedSettlement();
+      }
+    }
+  }
+
+  Future<void> _checkAndPromptUnresolvedSettlement() async {
+    if (!mounted || _isResolutionDialogShowing) return;
+    final repo = ref.read(settlementRepositoryProvider);
+    final unresolved = await repo.getUnresolvedSettlements(merchantId: widget.merchantId);
+    if (!mounted || _isResolutionDialogShowing || unresolved.isEmpty) return;
+
+    final merchant = ref.read(merchantDetailProvider(widget.merchantId)).value;
+    if (merchant == null) return;
+
+    final launchResult = ref.read(settlementControllerProvider).launchResult;
+
+    _isResolutionDialogShowing = true;
+    await SettlementResolutionDialog.show(
+      context,
+      settlement: unresolved.first,
+      merchantName: merchant.name,
+      initialUtr: launchResult?.approvalRefNo,
+      initialTxnId: launchResult?.txnId,
+      initialUpiStatus: launchResult?.upiStatus,
+    );
+    if (mounted) {
+      _isResolutionDialogShowing = false;
+    }
+  }
+
+  Future<void> _showManualResolutionDialog(Settlement settlement, String merchantName) async {
+    if (_isResolutionDialogShowing) return;
+    final launchResult = ref.read(settlementControllerProvider).launchResult;
+
+    _isResolutionDialogShowing = true;
+    await SettlementResolutionDialog.show(
+      context,
+      settlement: settlement,
+      merchantName: merchantName,
+      initialUtr: launchResult?.approvalRefNo,
+      initialTxnId: launchResult?.txnId,
+      initialUpiStatus: launchResult?.upiStatus,
+    );
+    if (mounted) {
+      _isResolutionDialogShowing = false;
+    }
+  }
+
+  Future<void> _confirmDeactivation(BuildContext context, Merchant merchant) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -52,6 +129,7 @@ class LedgerScreen extends ConsumerWidget {
           .deactivateMerchant(merchant.id);
       if (context.mounted) {
         if (success) {
+          ref.invalidate(merchantDetailProvider(widget.merchantId));
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${merchant.name} tab deactivated'),
@@ -72,12 +150,37 @@ class LedgerScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _confirmReactivation(BuildContext context, Merchant merchant) async {
+    final success = await ref
+        .read(addMerchantControllerProvider.notifier)
+        .reactivateMerchant(merchant.id);
+    if (context.mounted) {
+      if (success) {
+        ref.invalidate(merchantDetailProvider(widget.merchantId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${merchant.name} tab reactivated'),
+            backgroundColor: AppColors.settledGreen,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to reactivate tab'),
+            backgroundColor: AppColors.outstandingRed,
+          ),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final merchantAsync = ref.watch(merchantDetailProvider(merchantId));
-    final purchasesAsync = ref.watch(merchantPurchasesStreamProvider(merchantId));
-    final outstandingAsync = ref.watch(merchantOutstandingStreamProvider(merchantId));
-    final unresolvedAsync = ref.watch(unresolvedSettlementsForMerchantProvider(merchantId));
+  Widget build(BuildContext context) {
+    final merchantAsync = ref.watch(merchantDetailProvider(widget.merchantId));
+    final purchasesAsync = ref.watch(merchantPurchasesStreamProvider(widget.merchantId));
+    final settlementsAsync = ref.watch(merchantSettlementsStreamProvider(widget.merchantId));
+    final outstandingAsync = ref.watch(merchantOutstandingStreamProvider(widget.merchantId));
+    final unresolvedAsync = ref.watch(unresolvedSettlementsForMerchantProvider(widget.merchantId));
 
     return merchantAsync.when(
       data: (merchant) {
@@ -91,71 +194,168 @@ class LedgerScreen extends ConsumerWidget {
         final outstandingPaise = outstandingAsync.value ?? 0;
         final hasOutstanding = outstandingPaise > 0;
         final purchases = purchasesAsync.value ?? [];
+        final settlements = settlementsAsync.value ?? [];
         final unresolvedSettlements = unresolvedAsync.value ?? [];
         final hasUnresolved = unresolvedSettlements.isNotEmpty;
         final pendingSettlement = hasUnresolved ? unresolvedSettlements.first : null;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(
-              merchant.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'deactivate') {
-                    _confirmDeactivation(context, ref, merchant);
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'deactivate',
-                    child: Row(
-                      children: [
-                        Icon(Icons.archive_outlined, size: 20, color: AppColors.outstandingRed),
-                        SizedBox(width: 8),
-                        Text('Deactivate Tab', style: TextStyle(color: AppColors.outstandingRed)),
-                      ],
-                    ),
+        return DefaultTabController(
+          length: 2,
+          child: Scaffold(
+            appBar: AppBar(
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    merchant.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
+                  if (!merchant.isActive)
+                    const Text(
+                      'Archived Store Tab',
+                      style: TextStyle(fontSize: 11, color: AppColors.outstandingRed),
+                    ),
                 ],
               ),
-            ],
-          ),
-          body: Column(
-            children: [
-              // Merchant Header & Outstanding Banner
-              _buildHeader(merchant, outstandingPaise, hasOutstanding),
-
-              // Unresolved Settlement Recovery Banner
-              if (pendingSettlement != null)
-                _buildUnresolvedBanner(context, merchant, pendingSettlement),
-
-              // Purchases List
-              Expanded(
-                child: purchasesAsync.when(
-                  data: (purchasesList) {
-                    if (purchasesList.isEmpty) {
-                      return _buildEmptyPurchasesState(context, merchant);
+              actions: [
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      context.push('/merchant/edit/${merchant.id}');
+                    } else if (value == 'deactivate') {
+                      _confirmDeactivation(context, merchant);
+                    } else if (value == 'reactivate') {
+                      _confirmReactivation(context, merchant);
                     }
-                    return _buildPurchasesList(purchasesList);
                   },
-                  loading: () => const Center(child: CircularProgressIndicator()),
-                  error: (err, _) => Center(child: Text('Error loading ledger: $err')),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
+                          SizedBox(width: 8),
+                          Text('Edit Store Details'),
+                        ],
+                      ),
+                    ),
+                    if (merchant.isActive)
+                      const PopupMenuItem(
+                        value: 'deactivate',
+                        child: Row(
+                          children: [
+                            Icon(Icons.archive_outlined, size: 20, color: AppColors.outstandingRed),
+                            SizedBox(width: 8),
+                            Text('Deactivate Tab', style: TextStyle(color: AppColors.outstandingRed)),
+                          ],
+                        ),
+                      )
+                    else
+                      const PopupMenuItem(
+                        value: 'reactivate',
+                        child: Row(
+                          children: [
+                            Icon(Icons.unarchive_outlined, size: 20, color: AppColors.settledGreen),
+                            SizedBox(width: 8),
+                            Text('Reactivate Tab', style: TextStyle(color: AppColors.settledGreen)),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
-              ),
+              ],
+            ),
+            body: Column(
+              children: [
+                // Merchant Header & Outstanding Banner
+                _buildHeader(merchant, outstandingPaise, hasOutstanding),
 
-              // Bottom Action Bar
-              _buildBottomActionBar(
-                context,
-                merchant,
-                outstandingPaise,
-                hasOutstanding,
-                purchases.length,
-                pendingSettlement,
-              ),
-            ],
+                // Unresolved Settlement Recovery Banner
+                if (pendingSettlement != null)
+                  _buildUnresolvedBanner(context, merchant, pendingSettlement),
+
+                // Tabs: Purchases vs Settlements
+                Container(
+                  color: AppColors.cardLight,
+                  child: TabBar(
+                    labelColor: AppColors.primary,
+                    unselectedLabelColor: AppColors.textSecondaryLight,
+                    indicatorColor: AppColors.primary,
+                    indicatorWeight: 3,
+                    tabs: [
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.shopping_bag_outlined, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Purchases (${purchases.length})',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.receipt_outlined, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Settlements (${settlements.length})',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Tab Views
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Tab 1: Purchases List
+                      purchasesAsync.when(
+                        data: (purchasesList) {
+                          if (purchasesList.isEmpty) {
+                            return _buildEmptyPurchasesState(context, merchant);
+                          }
+                          return _buildPurchasesList(purchasesList);
+                        },
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (err, _) => Center(child: Text('Error loading ledger: $err')),
+                      ),
+
+                      // Tab 2: Settlements List
+                      settlementsAsync.when(
+                        data: (settlementsList) {
+                          if (settlementsList.isEmpty) {
+                            return _buildEmptySettlementsState(context, merchant);
+                          }
+                          return _buildSettlementsList(context, merchant, settlementsList);
+                        },
+                        loading: () => const Center(child: CircularProgressIndicator()),
+                        error: (err, _) => Center(child: Text('Error loading settlements: $err')),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Bottom Action Bar
+                if (merchant.isActive)
+                  _buildBottomActionBar(
+                    context,
+                    merchant,
+                    outstandingPaise,
+                    hasOutstanding,
+                    purchases.length,
+                    pendingSettlement,
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -173,9 +373,9 @@ class LedgerScreen extends ConsumerWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.cardLight,
-        border: const Border(
+        border: Border(
           bottom: BorderSide(color: AppColors.borderLight),
         ),
       ),
@@ -287,6 +487,8 @@ class LedgerScreen extends ConsumerWidget {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final purchase = purchases[index];
+        final isSettled = purchase.isSettled;
+
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
           child: Row(
@@ -295,13 +497,15 @@ class LedgerScreen extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
+                  color: isSettled
+                      ? AppColors.settledGreen.withValues(alpha: 0.1)
+                      : AppColors.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
-                  Icons.shopping_bag_outlined,
+                child: Icon(
+                  isSettled ? Icons.check_circle_outline : Icons.shopping_bag_outlined,
                   size: 20,
-                  color: AppColors.primary,
+                  color: isSettled ? AppColors.settledGreen : AppColors.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -309,12 +513,38 @@ class LedgerScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      purchase.note,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            purchase.note,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              decoration: isSettled ? TextDecoration.none : null,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isSettled ? Colors.green.shade50 : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isSettled ? Colors.green.shade300 : Colors.orange.shade300,
+                            ),
+                          ),
+                          child: Text(
+                            isSettled ? 'Settled' : 'Outstanding',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isSettled ? Colors.green.shade800 : Colors.orange.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -351,11 +581,197 @@ class LedgerScreen extends ConsumerWidget {
               const SizedBox(width: 12),
               Text(
                 CurrencyFormatter.formatPaise(purchase.amountPaise),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimaryLight,
+                  color: isSettled ? AppColors.textSecondaryLight : AppColors.textPrimaryLight,
                 ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSettlementsList(
+    BuildContext context,
+    Merchant merchant,
+    List<Settlement> settlements,
+  ) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      itemCount: settlements.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final settlement = settlements[index];
+        final isSettled = settlement.status == SettlementStatus.settled;
+        final isUnresolved = settlement.status.isUnresolved;
+        final isFailed = settlement.status == SettlementStatus.failed;
+
+        Color badgeBgColor;
+        Color badgeTextColor;
+        String statusLabel;
+
+        if (isSettled) {
+          badgeBgColor = Colors.green.shade50;
+          badgeTextColor = Colors.green.shade800;
+          statusLabel = 'SETTLED';
+        } else if (isFailed) {
+          badgeBgColor = Colors.red.shade50;
+          badgeTextColor = Colors.red.shade800;
+          statusLabel = 'FAILED';
+        } else if (settlement.status == SettlementStatus.upiLaunched) {
+          badgeBgColor = Colors.amber.shade50;
+          badgeTextColor = Colors.amber.shade900;
+          statusLabel = 'UPI LAUNCHED';
+        } else if (settlement.status == SettlementStatus.initiated) {
+          badgeBgColor = Colors.blue.shade50;
+          badgeTextColor = Colors.blue.shade800;
+          statusLabel = 'INITIATED';
+        } else {
+          badgeBgColor = Colors.amber.shade50;
+          badgeTextColor = Colors.amber.shade900;
+          statusLabel = 'UNKNOWN';
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 4.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: badgeBgColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isSettled
+                          ? Icons.check_circle_outline
+                          : (isFailed ? Icons.error_outline : Icons.pending_outlined),
+                      size: 20,
+                      color: badgeTextColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              settlement.initiatedAt.toFormattedDate(),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: badgeBgColor,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: badgeTextColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              settlement.completedAt != null
+                                  ? 'Settled at ${settlement.completedAt!.toFormattedDateTime()}'
+                                  : 'Initiated at ${settlement.initiatedAt.toFormattedDateTime()}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textSecondaryLight,
+                              ),
+                            ),
+                            if (settlement.items.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                '•  ${settlement.items.length} ${settlement.items.length == 1 ? 'item' : 'items'}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondaryLight,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (settlement.utr != null && settlement.utr!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'UTR: ${settlement.utr}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondaryLight,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                        if (settlement.transactionId != null &&
+                            settlement.transactionId!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Txn ID: ${settlement.transactionId}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondaryLight,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        CurrencyFormatter.formatPaise(settlement.amountPaise),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isSettled ? AppColors.settledGreen : AppColors.textPrimaryLight,
+                        ),
+                      ),
+                      if (isUnresolved || isFailed) ...[
+                        const SizedBox(height: 6),
+                        ElevatedButton(
+                          onPressed: () {
+                            _showManualResolutionDialog(settlement, merchant.name);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isFailed ? Colors.red.shade700 : Colors.amber.shade800,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            minimumSize: const Size(60, 28),
+                            textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          ),
+                          child: const Text('Resolve'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -387,6 +803,41 @@ class LedgerScreen extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               'Record items bought on credit from ${merchant.name}.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondaryLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptySettlementsState(BuildContext context, Merchant merchant) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.payments_outlined,
+              size: 56,
+              color: AppColors.settledGreen.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No settlements recorded yet',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Once you clear dues via UPI with ${merchant.name}, settled and pending payment records will appear here.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,
@@ -439,10 +890,9 @@ class LedgerScreen extends ConsumerWidget {
           const SizedBox(width: 8),
           ElevatedButton(
             onPressed: () {
-              SettlementResolutionDialog.show(
-                context,
-                settlement: settlement,
-                merchantName: merchant.name,
+              _showManualResolutionDialog(
+                settlement,
+                merchant.name,
               );
             },
             style: ElevatedButton.styleFrom(
@@ -517,10 +967,9 @@ class LedgerScreen extends ConsumerWidget {
               child: ElevatedButton.icon(
                 onPressed: hasPendingSettlement
                     ? () {
-                        SettlementResolutionDialog.show(
-                          context,
-                          settlement: pendingSettlement,
-                          merchantName: merchant.name,
+                        _showManualResolutionDialog(
+                          pendingSettlement,
+                          merchant.name,
                         );
                       }
                     : (hasOutstanding

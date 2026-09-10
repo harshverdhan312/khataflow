@@ -7,6 +7,8 @@ import 'package:khata_flow/features/dashboard/presentation/dashboard_screen.dart
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 
+import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
+
 void main() {
   testWidgets('Dashboard displays empty state when no merchants exist', (tester) async {
     await tester.pumpWidget(
@@ -19,6 +21,9 @@ void main() {
                 merchantSummaries: [],
               ),
             ),
+          ),
+          inactiveMerchantsStreamProvider.overrideWith(
+            (ref) => Stream.value([]),
           ),
         ],
         child: const MaterialApp(
@@ -60,6 +65,9 @@ void main() {
               ),
             ),
           ),
+          inactiveMerchantsStreamProvider.overrideWith(
+            (ref) => Stream.value([]),
+          ),
         ],
         child: const MaterialApp(
           home: DashboardScreen(),
@@ -74,5 +82,44 @@ void main() {
     expect(find.text('Sharma Kirana'), findsOneWidget);
     expect(find.text('Grocery'), findsOneWidget);
     expect(find.text('sharma@upi'), findsOneWidget);
+  });
+
+  testWidgets('Dashboard displays archived stores section when inactive merchants exist', (tester) async {
+    final now = DateTime.now();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dashboardSummaryStreamProvider.overrideWith(
+            (ref) => Stream.value(
+              const DashboardSummary(
+                totalOutstandingPaise: 0,
+                merchantSummaries: [],
+              ),
+            ),
+          ),
+          inactiveMerchantsStreamProvider.overrideWith(
+            (ref) => Stream.value([
+              Merchant(
+                id: 'm2',
+                name: 'Old Pharmacy',
+                category: MerchantCategory.other,
+                upiVpa: 'old@upi',
+                isActive: false,
+                createdAt: now,
+                updatedAt: now,
+              ),
+            ]),
+          ),
+        ],
+        child: const MaterialApp(
+          home: DashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Archived Store Tabs (1)'), findsOneWidget);
   });
 }

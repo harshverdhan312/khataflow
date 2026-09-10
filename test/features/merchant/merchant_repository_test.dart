@@ -97,6 +97,45 @@ void main() {
       // Sync queue should have 2 entries (create + deactivate update)
       final queueItems = await db.syncQueueDao.getPendingItems();
       expect(queueItems.length, 2);
+
+      // Should appear in inactive stream
+      final inactiveList = await repository.watchInactiveMerchants().first;
+      expect(inactiveList.length, 1);
+      expect(inactiveList.first.id, merchant.id);
+
+      // Reactivate
+      await repository.reactivateMerchant(merchant.id);
+      final activeAfterReactivation = await repository.getActiveMerchants();
+      expect(activeAfterReactivation.length, 1);
+      expect(activeAfterReactivation.first.id, merchant.id);
+    });
+
+    test('updates merchant details and preserves data integrity', () async {
+      final merchant = await repository.createMerchant(
+        const CreateMerchantInput(
+          name: 'Original Store',
+          category: MerchantCategory.grocery,
+          phone: '9876543210',
+          upiVpa: 'store@upi',
+        ),
+      );
+
+      final updated = merchant.copyWith(
+        name: 'Updated Store Name',
+        category: MerchantCategory.milk,
+        phone: '9123456780',
+        upiVpa: 'newstore@upi',
+      );
+
+      await repository.updateMerchant(updated);
+
+      final fetched = await repository.getMerchantById(merchant.id);
+      expect(fetched, isNotNull);
+      expect(fetched!.name, 'Updated Store Name');
+      expect(fetched.category, MerchantCategory.milk);
+      expect(fetched.phone, '9123456780');
+      expect(fetched.upiVpa, 'newstore@upi');
+      expect(fetched.isActive, true);
     });
   });
 }

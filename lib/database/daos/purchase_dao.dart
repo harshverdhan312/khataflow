@@ -7,6 +7,16 @@ import '../tables/settlements_table.dart';
 
 part 'purchase_dao.g.dart';
 
+class PurchaseWithSettledStatus {
+  final PurchaseEntity purchase;
+  final bool isSettled;
+
+  const PurchaseWithSettledStatus({
+    required this.purchase,
+    required this.isSettled,
+  });
+}
+
 @DriftAccessor(tables: [Purchases, Settlements, SettlementItems, Merchants])
 class PurchaseDao extends DatabaseAccessor<AppDatabase> with _$PurchaseDaoMixin {
   PurchaseDao(super.db);
@@ -21,6 +31,55 @@ class PurchaseDao extends DatabaseAccessor<AppDatabase> with _$PurchaseDaoMixin 
         .watch();
   }
 
+  /// Watches purchases with their derived settlement status.
+  Stream<List<PurchaseWithSettledStatus>> watchPurchasesWithSettledStatus(String merchantId) {
+    final sql = '''
+      SELECT 
+        p.id, 
+        p.merchant_id, 
+        p.amount_paise, 
+        p.note, 
+        p.category, 
+        p.purchase_date, 
+        p.created_at, 
+        p.updated_at, 
+        p.sync_status,
+        EXISTS(
+          SELECT 1 
+          FROM settlement_items si
+          INNER JOIN settlements s ON s.id = si.settlement_id
+          WHERE si.purchase_id = p.id 
+            AND s.status IN ('SETTLED', 'SUCCESS')
+        ) AS is_settled
+      FROM purchases p
+      WHERE p.merchant_id = ?
+      ORDER BY p.purchase_date DESC, p.created_at DESC
+    ''';
+
+    return customSelect(
+      sql,
+      variables: [Variable.withString(merchantId)],
+      readsFrom: {purchases, settlements, settlementItems},
+    ).watch().map((rows) {
+      return rows.map((row) {
+        return PurchaseWithSettledStatus(
+          purchase: PurchaseEntity(
+            id: row.read<String>('id'),
+            merchantId: row.read<String>('merchant_id'),
+            amountPaise: row.read<int>('amount_paise'),
+            note: row.read<String>('note'),
+            category: row.readNullable<String>('category'),
+            purchaseDate: row.read<int>('purchase_date'),
+            createdAt: row.read<int>('created_at'),
+            updatedAt: row.read<int>('updated_at'),
+            syncStatus: row.read<String>('sync_status'),
+          ),
+          isSettled: (row.read<int>('is_settled')) == 1,
+        );
+      }).toList();
+    });
+  }
+
   Future<List<PurchaseEntity>> getPurchases(String merchantId) {
     return (select(purchases)
           ..where((tbl) => tbl.merchantId.equals(merchantId))
@@ -29,6 +88,55 @@ class PurchaseDao extends DatabaseAccessor<AppDatabase> with _$PurchaseDaoMixin 
             (tbl) => OrderingTerm.desc(tbl.createdAt),
           ]))
         .get();
+  }
+
+  /// Gets purchases with their derived settlement status.
+  Future<List<PurchaseWithSettledStatus>> getPurchasesWithSettledStatus(String merchantId) async {
+    final sql = '''
+      SELECT 
+        p.id, 
+        p.merchant_id, 
+        p.amount_paise, 
+        p.note, 
+        p.category, 
+        p.purchase_date, 
+        p.created_at, 
+        p.updated_at, 
+        p.sync_status,
+        EXISTS(
+          SELECT 1 
+          FROM settlement_items si
+          INNER JOIN settlements s ON s.id = si.settlement_id
+          WHERE si.purchase_id = p.id 
+            AND s.status IN ('SETTLED', 'SUCCESS')
+        ) AS is_settled
+      FROM purchases p
+      WHERE p.merchant_id = ?
+      ORDER BY p.purchase_date DESC, p.created_at DESC
+    ''';
+
+    final rows = await customSelect(
+      sql,
+      variables: [Variable.withString(merchantId)],
+      readsFrom: {purchases, settlements, settlementItems},
+    ).get();
+
+    return rows.map((row) {
+      return PurchaseWithSettledStatus(
+        purchase: PurchaseEntity(
+          id: row.read<String>('id'),
+          merchantId: row.read<String>('merchant_id'),
+          amountPaise: row.read<int>('amount_paise'),
+          note: row.read<String>('note'),
+          category: row.readNullable<String>('category'),
+          purchaseDate: row.read<int>('purchase_date'),
+          createdAt: row.read<int>('created_at'),
+          updatedAt: row.read<int>('updated_at'),
+          syncStatus: row.read<String>('sync_status'),
+        ),
+        isSettled: (row.read<int>('is_settled')) == 1,
+      );
+    }).toList();
   }
 
   Future<PurchaseEntity?> getPurchaseById(String id) {

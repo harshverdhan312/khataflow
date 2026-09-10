@@ -15,15 +15,15 @@ class LedgerRepositoryImpl implements LedgerRepository {
 
   @override
   Stream<List<Purchase>> watchPurchases(String merchantId) {
-    return _db.purchaseDao.watchPurchases(merchantId).map(
-          (entities) => entities.map(_mapEntityToDomain).toList(),
+    return _db.purchaseDao.watchPurchasesWithSettledStatus(merchantId).map(
+          (items) => items.map((item) => _mapEntityToDomain(item.purchase, isSettled: item.isSettled)).toList(),
         );
   }
 
   @override
   Future<List<Purchase>> getPurchases(String merchantId) async {
-    final entities = await _db.purchaseDao.getPurchases(merchantId);
-    return entities.map(_mapEntityToDomain).toList();
+    final items = await _db.purchaseDao.getPurchasesWithSettledStatus(merchantId);
+    return items.map((item) => _mapEntityToDomain(item.purchase, isSettled: item.isSettled)).toList();
   }
 
   @override
@@ -114,7 +114,7 @@ class LedgerRepositoryImpl implements LedgerRepository {
     );
   }
 
-  Purchase _mapEntityToDomain(PurchaseEntity entity) {
+  Purchase _mapEntityToDomain(PurchaseEntity entity, {bool isSettled = false}) {
     return Purchase(
       id: entity.id,
       merchantId: entity.merchantId,
@@ -125,6 +125,7 @@ class LedgerRepositoryImpl implements LedgerRepository {
       createdAt: DateTime.fromMillisecondsSinceEpoch(entity.createdAt),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(entity.updatedAt),
       syncStatus: SyncStatus.fromDbValue(entity.syncStatus),
+      isSettled: isSettled,
     );
   }
 }

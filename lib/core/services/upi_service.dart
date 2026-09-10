@@ -9,21 +9,30 @@ enum UpiLaunchStatus {
 class UpiLaunchResult {
   final UpiLaunchStatus status;
   final String? rawResponse;
+  final String? upiStatus;
   final String? txnId;
   final String? responseCode;
   final String? approvalRefNo;
+  final String? txnRef;
   final String? statusMessage;
 
   const UpiLaunchResult({
     required this.status,
     this.rawResponse,
+    this.upiStatus,
     this.txnId,
     this.responseCode,
     this.approvalRefNo,
+    this.txnRef,
     this.statusMessage,
   });
 
-  bool get isLaunched => status == UpiLaunchStatus.launched;
+  bool get isLaunched =>
+      status == UpiLaunchStatus.launched || status == UpiLaunchStatus.resultAvailable;
+
+  bool get hasTransactionDetails =>
+      (approvalRefNo != null && approvalRefNo!.isNotEmpty) ||
+      (txnId != null && txnId!.isNotEmpty);
 }
 
 abstract class UpiService {

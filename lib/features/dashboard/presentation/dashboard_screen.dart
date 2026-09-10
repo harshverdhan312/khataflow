@@ -6,6 +6,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/extensions/date_time_extensions.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../merchant/domain/merchant.dart';
+import '../../merchant/presentation/merchant_providers.dart';
 import '../domain/dashboard_summary.dart';
 import 'dashboard_providers.dart';
 
@@ -15,6 +17,8 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(dashboardSummaryStreamProvider);
+    final inactiveMerchantsAsync = ref.watch(inactiveMerchantsStreamProvider);
+    final inactiveMerchants = inactiveMerchantsAsync.value ?? [];
 
     return Scaffold(
       appBar: AppBar(
@@ -46,9 +50,9 @@ class DashboardScreen extends ConsumerWidget {
       body: summaryAsync.when(
         data: (summary) {
           if (summary.merchantSummaries.isEmpty) {
-            return _buildEmptyState(context);
+            return _buildEmptyState(context, inactiveMerchants);
           }
-          return _buildContent(context, summary);
+          return _buildContent(context, summary, inactiveMerchants);
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
@@ -72,7 +76,11 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(BuildContext context, DashboardSummary summary) {
+  Widget _buildContent(
+    BuildContext context,
+    DashboardSummary summary,
+    List<Merchant> inactiveMerchants,
+  ) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
@@ -161,6 +169,11 @@ class DashboardScreen extends ConsumerWidget {
         ...summary.merchantSummaries.map(
           (mSummary) => _buildMerchantCard(context, mSummary),
         ),
+
+        if (inactiveMerchants.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _buildArchivedStoresSection(context, inactiveMerchants),
+        ],
 
         const SizedBox(height: 80), // Bottom padding for FAB
       ],
@@ -287,9 +300,77 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildArchivedStoresSection(BuildContext context, List<Merchant> inactiveMerchants) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: Text(
+        'Archived Store Tabs (${inactiveMerchants.length})',
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondaryLight,
+        ),
+      ),
+      children: inactiveMerchants.map((merchant) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: AppCard(
+            onTap: () => context.push('/ledger/${merchant.id}'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            merchant.name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondaryLight,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.borderLight,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Archived',
+                              style: TextStyle(fontSize: 10, color: AppColors.textSecondaryLight),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${merchant.category.displayName} • ${merchant.upiVpa}',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondaryLight),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: AppColors.textSecondaryLight,
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, List<Merchant> inactiveMerchants) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -338,6 +419,10 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            if (inactiveMerchants.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              _buildArchivedStoresSection(context, inactiveMerchants),
+            ],
           ],
         ),
       ),

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/native_upi_service.dart';
 import '../../../core/services/upi_service.dart';
-import '../../../core/services/url_launcher_upi_service.dart';
 import '../../../database/database_provider.dart';
 import '../../ledger/presentation/ledger_providers.dart';
 import '../data/settlement_repository_impl.dart';
@@ -8,7 +8,7 @@ import '../domain/settlement.dart';
 import '../domain/settlement_repository.dart';
 
 final upiServiceProvider = Provider<UpiService>((ref) {
-  return const UrlLauncherUpiService();
+  return const NativeUpiService();
 });
 
 final settlementRepositoryProvider = Provider<SettlementRepository>((ref) {

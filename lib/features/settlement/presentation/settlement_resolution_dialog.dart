@@ -8,26 +8,46 @@ import 'settlement_providers.dart';
 class SettlementResolutionDialog extends ConsumerStatefulWidget {
   final Settlement settlement;
   final String merchantName;
+  final String? initialUtr;
+  final String? initialTxnId;
+  final String? initialUpiStatus;
+
+  static bool isShowing = false;
 
   const SettlementResolutionDialog({
     super.key,
     required this.settlement,
     required this.merchantName,
+    this.initialUtr,
+    this.initialTxnId,
+    this.initialUpiStatus,
   });
 
   static Future<void> show(
     BuildContext context, {
     required Settlement settlement,
     required String merchantName,
-  }) {
-    return showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => SettlementResolutionDialog(
-        settlement: settlement,
-        merchantName: merchantName,
-      ),
-    );
+    String? initialUtr,
+    String? initialTxnId,
+    String? initialUpiStatus,
+  }) async {
+    if (isShowing) return;
+    isShowing = true;
+    try {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => SettlementResolutionDialog(
+          settlement: settlement,
+          merchantName: merchantName,
+          initialUtr: initialUtr,
+          initialTxnId: initialTxnId,
+          initialUpiStatus: initialUpiStatus,
+        ),
+      );
+    } finally {
+      isShowing = false;
+    }
   }
 
   @override
@@ -37,9 +57,19 @@ class SettlementResolutionDialog extends ConsumerStatefulWidget {
 
 class _SettlementResolutionDialogState
     extends ConsumerState<SettlementResolutionDialog> {
-  final _utrController = TextEditingController();
-  final _txnIdController = TextEditingController();
+  late final TextEditingController _utrController;
+  late final TextEditingController _txnIdController;
   bool _isProcessing = false;
+  late bool _showReferenceFields;
+
+  @override
+  void initState() {
+    super.initState();
+    _utrController = TextEditingController(text: widget.initialUtr ?? '');
+    _txnIdController = TextEditingController(text: widget.initialTxnId ?? '');
+    _showReferenceFields = (widget.initialUtr != null && widget.initialUtr!.isNotEmpty) ||
+        (widget.initialTxnId != null && widget.initialTxnId!.isNotEmpty);
+  }
 
   @override
   void dispose() {
@@ -120,6 +150,8 @@ class _SettlementResolutionDialogState
 
   @override
   Widget build(BuildContext context) {
+    final amountFormatted = CurrencyFormatter.formatPaise(widget.settlement.amountPaise);
+
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
@@ -134,7 +166,7 @@ class _SettlementResolutionDialogState
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
-              Icons.receipt_outlined,
+              Icons.help_outline_rounded,
               color: AppColors.primary,
               size: 22,
             ),
@@ -142,9 +174,9 @@ class _SettlementResolutionDialogState
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              'Record Settlement',
+              'Did you complete the payment?',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 17,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -157,53 +189,29 @@ class _SettlementResolutionDialogState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.borderLight),
               ),
-              child: Column(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Store',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondaryLight,
-                        ),
+                  Expanded(
+                    child: Text(
+                      '$amountFormatted to ${widget.merchantName}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimaryLight,
                       ),
-                      Text(
-                        widget.merchantName,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Amount',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondaryLight,
-                        ),
-                      ),
-                      Text(
-                        CurrencyFormatter.formatPaise(widget.settlement.amountPaise),
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimaryLight,
-                        ),
-                      ),
-                    ],
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.settledGreen,
+                    size: 20,
                   ),
                 ],
               ),
@@ -223,7 +231,7 @@ class _SettlementResolutionDialogState
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'KhataFlow does not hold funds or verify payments automatically. Did you complete the transfer in your UPI app?',
+                      'KhataFlow does not hold funds or independently verify bank transfers. Please confirm the result from your UPI app.',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.black87,
@@ -233,28 +241,62 @@ class _SettlementResolutionDialogState
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _utrController,
-              decoration: const InputDecoration(
-                labelText: 'UPI Reference / UTR (Optional)',
-                hintText: 'e.g. 423456789012',
-                border: OutlineInputBorder(),
-                isDense: true,
+            const SizedBox(height: 12),
+            // Collapsible / Optional reference section
+            GestureDetector(
+              onTap: () {
+                setState(() => _showReferenceFields = !_showReferenceFields);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      _showReferenceFields
+                          ? Icons.remove_circle_outline
+                          : Icons.add_circle_outline,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _showReferenceFields
+                          ? 'Hide payment reference'
+                          : '+ Add payment reference (optional)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              keyboardType: TextInputType.text,
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _txnIdController,
-              decoration: const InputDecoration(
-                labelText: 'Transaction ID / Note (Optional)',
-                hintText: 'e.g. T240909...',
-                border: OutlineInputBorder(),
-                isDense: true,
+            if (_showReferenceFields) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _utrController,
+                decoration: const InputDecoration(
+                  labelText: 'UPI Reference / UTR (Optional)',
+                  hintText: 'e.g. 423456789012',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                keyboardType: TextInputType.text,
               ),
-              keyboardType: TextInputType.text,
-            ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _txnIdController,
+                decoration: const InputDecoration(
+                  labelText: 'Transaction ID / Note (Optional)',
+                  hintText: 'e.g. T240909...',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                keyboardType: TextInputType.text,
+              ),
+            ],
           ],
         ),
       ),
@@ -281,7 +323,7 @@ class _SettlementResolutionDialogState
                   ),
                 ),
                 child: const Text(
-                  'Record Payment (Mark Settled)',
+                  'Yes, Payment Completed',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),

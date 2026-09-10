@@ -38,10 +38,26 @@ class MerchantDao extends DatabaseAccessor<AppDatabase> with _$MerchantDaoMixin 
     return update(merchants).replace(entry);
   }
 
+  Stream<List<MerchantEntity>> watchInactiveMerchants() {
+    return (select(merchants)
+          ..where((tbl) => tbl.isActive.equals(false))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.name)]))
+        .watch();
+  }
+
   Future<int> deactivateMerchant(String id, int updatedAt) {
     return (update(merchants)..where((tbl) => tbl.id.equals(id))).write(
       MerchantsCompanion(
         isActive: const Value(false),
+        updatedAt: Value(updatedAt),
+      ),
+    );
+  }
+
+  Future<int> reactivateMerchant(String id, int updatedAt) {
+    return (update(merchants)..where((tbl) => tbl.id.equals(id))).write(
+      MerchantsCompanion(
+        isActive: const Value(true),
         updatedAt: Value(updatedAt),
       ),
     );

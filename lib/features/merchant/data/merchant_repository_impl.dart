@@ -22,6 +22,13 @@ class MerchantRepositoryImpl implements MerchantRepository {
   }
 
   @override
+  Stream<List<Merchant>> watchInactiveMerchants() {
+    return _db.merchantDao.watchInactiveMerchants().map(
+          (entities) => entities.map(_mapEntityToDomain).toList(),
+        );
+  }
+
+  @override
   Future<List<Merchant>> getActiveMerchants() async {
     final entities = await _db.merchantDao.getActiveMerchants();
     return entities.map(_mapEntityToDomain).toList();
@@ -96,6 +103,7 @@ class MerchantRepositoryImpl implements MerchantRepository {
       category: Value(merchant.category.toDbValue()),
       phone: Value(merchant.phone),
       upiVpa: Value(merchant.upiVpa),
+      createdAt: Value(merchant.createdAt.millisecondsSinceEpoch),
       updatedAt: Value(now),
       isActive: Value(merchant.isActive),
     );
@@ -127,6 +135,23 @@ class MerchantRepositoryImpl implements MerchantRepository {
 
     await _db.transaction(() async {
       await _db.merchantDao.deactivateMerchant(merchantId, now);
+      await _db.syncQueueDao.enqueue(syncQueueCompanion);
+    });
+  }
+
+  @override
+  Future<void> reactivateMerchant(String merchantId) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final syncQueueCompanion = SyncQueueCompanion(
+      id: Value(_uuid.v4()),
+      entityType: Value(SyncEntityType.merchant.toDbValue()),
+      entityId: Value(merchantId),
+      operation: Value(SyncOperation.upsert.toDbValue()),
+      createdAt: Value(now),
+    );
+
+    await _db.transaction(() async {
+      await _db.merchantDao.reactivateMerchant(merchantId, now);
       await _db.syncQueueDao.enqueue(syncQueueCompanion);
     });
   }
