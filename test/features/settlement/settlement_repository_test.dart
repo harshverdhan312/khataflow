@@ -137,7 +137,69 @@ void main() {
       );
     });
 
-    test('transitions INITIATED -> UPI_LAUNCHED -> SETTLED and excludes purchases from outstanding', () async {
+    test('recordSettlement atomically records settlement as SETTLED, links items, and zeroes outstanding dues', () async {
+      const p1Id = 'p_rec_1';
+      const p2Id = 'p_rec_2';
+      await db.purchaseDao.insertPurchase(
+        PurchasesCompanion.insert(
+          id: p1Id,
+          merchantId: merchantId,
+          amountPaise: 30000, // Rs 300
+          note: 'Vegetables',
+          purchaseDate: now,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await db.purchaseDao.insertPurchase(
+        PurchasesCompanion.insert(
+          id: p2Id,
+          merchantId: merchantId,
+          amountPaise: 20000, // Rs 200
+          note: 'Fruits',
+          purchaseDate: now,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final initialOutstanding = await db.purchaseDao.getOutstandingAmount(merchantId);
+      expect(initialOutstanding, equals(50000));
+
+      final settlement = await settlementRepo.recordSettlement(
+        merchantId: merchantId,
+        purchaseIds: [p1Id, p2Id],
+        paymentReference: 'REF-123456',
+      );
+
+      expect(settlement.merchantId, equals(merchantId));
+      expect(settlement.amountPaise, equals(50000));
+      expect(settlement.status, equals(SettlementStatus.settled));
+      expect(settlement.utr, equals('REF-123456'));
+      expect(settlement.completedAt, isNotNull);
+      expect(settlement.items.length, equals(2));
+
+      // Check SQLite DB
+      final dbSettlement = await db.settlementDao.getSettlementById(settlement.id);
+      expect(dbSettlement, isNotNull);
+      expect(dbSettlement!.status, equals('SETTLED'));
+      expect(dbSettlement.utr, equals('REF-123456'));
+      expect(dbSettlement.completedAt, isNotNull);
+
+      // Verify items
+      final items = await db.settlementDao.getSettlementItems(settlement.id);
+      expect(items.length, equals(2));
+
+      // Verify sync queue
+      final syncQueueItems = await db.syncQueueDao.getPendingItems();
+      expect(syncQueueItems.any((item) => item.entityId == settlement.id && item.entityType == 'SETTLEMENT'), isTrue);
+
+      // Verify outstanding dues are cleared
+      final updatedOutstanding = await db.purchaseDao.getOutstandingAmount(merchantId);
+      expect(updatedOutstanding, equals(0));
+    });
+
+    test('transitions INITIATED -> SETTLED and excludes purchases from outstanding', () async {
       const p1Id = 'p_trans_1';
       await db.purchaseDao.insertPurchase(
         PurchasesCompanion.insert(
@@ -164,21 +226,13 @@ void main() {
       outstanding = await db.purchaseDao.getOutstandingAmount(merchantId);
       expect(outstanding, equals(50000));
 
-      // 2. UPI_LAUNCHED
-      await settlementRepo.markUpiLaunched(settlement.id);
-      var fetched = await settlementRepo.getSettlementById(settlement.id);
-      expect(fetched!.status, equals(SettlementStatus.upiLaunched));
-      // Still outstanding while UPI_LAUNCHED
-      outstanding = await db.purchaseDao.getOutstandingAmount(merchantId);
-      expect(outstanding, equals(50000));
-
-      // 3. SETTLED
+      // 2. SETTLED
       await settlementRepo.markSettlementSettled(
         settlementId: settlement.id,
         utr: '123456789012',
         transactionId: 'TXN123',
       );
-      fetched = await settlementRepo.getSettlementById(settlement.id);
+      final fetched = await settlementRepo.getSettlementById(settlement.id);
       expect(fetched!.status, equals(SettlementStatus.settled));
       expect(fetched.utr, equals('123456789012'));
       expect(fetched.transactionId, equals('TXN123'));
@@ -212,12 +266,11 @@ void main() {
         merchantId: merchantId,
         purchaseIds: [p1Id],
       );
-      await settlementRepo.markUpiLaunched(settlement.id);
 
       // User marks payment as FAILED
       await settlementRepo.markSettlementFailed(
         settlementId: settlement.id,
-        reason: 'Payment cancelled in UPI app',
+        reason: 'Settlement cancelled',
       );
 
       final fetched = await settlementRepo.getSettlementById(settlement.id);
@@ -256,7 +309,6 @@ void main() {
         merchantId: merchantId,
         purchaseIds: [p1Id],
       );
-      await settlementRepo.markUpiLaunched(settlement.id);
       await settlementRepo.markSettlementUnknown(settlementId: settlement.id);
 
       final fetched = await settlementRepo.getSettlementById(settlement.id);

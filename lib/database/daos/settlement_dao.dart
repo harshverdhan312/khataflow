@@ -87,11 +87,11 @@ class SettlementDao extends DatabaseAccessor<AppDatabase> with _$SettlementDaoMi
     );
   }
 
-  /// Returns unresolved settlements (INITIATED, UPI_LAUNCHED, UNKNOWN).
+  /// Returns unresolved settlements (INITIATED, UNKNOWN).
   Future<List<SettlementEntity>> getUnresolvedSettlements({String? merchantId}) {
     final query = select(settlements)
       ..where((tbl) {
-        final statusCondition = tbl.status.isIn(['INITIATED', 'UPI_LAUNCHED', 'UNKNOWN']);
+        final statusCondition = tbl.status.isIn(['INITIATED', 'UNKNOWN']);
         if (merchantId != null) {
           return statusCondition & tbl.merchantId.equals(merchantId);
         }
@@ -108,7 +108,7 @@ class SettlementDao extends DatabaseAccessor<AppDatabase> with _$SettlementDaoMi
       FROM settlement_items si
       INNER JOIN settlements s ON s.id = si.settlement_id
       WHERE s.merchant_id = ?
-        AND s.status IN ('INITIATED', 'UPI_LAUNCHED', 'UNKNOWN')
+        AND s.status IN ('INITIATED', 'UNKNOWN')
     ''';
 
     final result = await customSelect(

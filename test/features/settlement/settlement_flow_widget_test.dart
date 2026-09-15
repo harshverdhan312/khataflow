@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:khata_flow/core/services/upi_service.dart';
+import 'package:khata_flow/features/ledger/domain/ledger_repository.dart';
 import 'package:khata_flow/features/ledger/domain/purchase.dart';
 import 'package:khata_flow/features/ledger/presentation/ledger_providers.dart';
 import 'package:khata_flow/features/ledger/presentation/ledger_screen.dart';
@@ -10,52 +10,46 @@ import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
 import 'package:khata_flow/features/receipt/domain/settlement_receipt.dart';
 import 'package:khata_flow/features/settlement/domain/settlement.dart';
-
 import 'package:khata_flow/features/settlement/domain/settlement_repository.dart';
 import 'package:khata_flow/features/settlement/domain/settlement_status.dart';
 import 'package:khata_flow/features/settlement/presentation/settlement_confirmation_sheet.dart';
 import 'package:khata_flow/features/settlement/presentation/settlement_providers.dart';
 import 'package:khata_flow/features/settlement/presentation/settlement_resolution_dialog.dart';
 
-class MockUpiService implements UpiService {
-  bool launchCalled = false;
-  UpiLaunchResult launchResultToReturn = const UpiLaunchResult(
-    status: UpiLaunchStatus.launched,
-    statusMessage: 'Launched mock UPI app',
-  );
-
-  @override
-  Uri buildUpiUri({
-    required String vpa,
-    required String merchantName,
-    required int amountPaise,
-    required String transactionNote,
-  }) {
-    return Uri.parse('upi://pay?pa=$vpa&pn=$merchantName&am=${amountPaise / 100}&cu=INR&tn=$transactionNote');
-  }
-
-  @override
-  bool isValidVpa(String vpa) => vpa.contains('@');
-
-  @override
-  Future<UpiLaunchResult> launchPayment({
-    required String vpa,
-    required String merchantName,
-    required int amountPaise,
-    required String transactionNote,
-  }) async {
-    launchCalled = true;
-    return launchResultToReturn;
-  }
-}
-
 class MockSettlementRepository implements SettlementRepository {
+  bool recordSettlementCalled = false;
   bool markSettledCalled = false;
+  String? recordedPaymentRef;
   String? recordedUtr;
   String? recordedTxnId;
 
   @override
-  Future<Settlement> initiateSettlement({required String merchantId, required List<String> purchaseIds}) async => throw UnimplementedError();
+  Future<Settlement> recordSettlement({
+    required String merchantId,
+    required List<String> purchaseIds,
+    String? paymentReference,
+  }) async {
+    recordSettlementCalled = true;
+    recordedPaymentRef = paymentReference;
+    return Settlement(
+      id: 's_mock_1',
+      merchantId: merchantId,
+      amountPaise: 25000,
+      status: SettlementStatus.settled,
+      utr: paymentReference,
+      completedAt: DateTime.now(),
+      initiatedAt: DateTime.now(),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<Settlement> initiateSettlement({
+    required String merchantId,
+    required List<String> purchaseIds,
+  }) async =>
+      throw UnimplementedError();
 
   @override
   Future<void> updateSettlementStatus({
@@ -66,17 +60,21 @@ class MockSettlementRepository implements SettlementRepository {
   }) async {}
 
   @override
-  Future<void> markUpiLaunched(String settlementId) async {}
-
-  @override
-  Future<void> markSettlementSettled({required String settlementId, String? transactionId, String? utr}) async {
+  Future<void> markSettlementSettled({
+    required String settlementId,
+    String? transactionId,
+    String? utr,
+  }) async {
     markSettledCalled = true;
     recordedUtr = utr;
     recordedTxnId = transactionId;
   }
 
   @override
-  Future<void> markSettlementFailed({required String settlementId, required String reason}) async {}
+  Future<void> markSettlementFailed({
+    required String settlementId,
+    required String reason,
+  }) async {}
 
   @override
   Future<void> markSettlementUnknown({required String settlementId}) async {}
@@ -89,7 +87,6 @@ class MockSettlementRepository implements SettlementRepository {
 
   @override
   Future<List<Settlement>> getUnresolvedSettlements({String? merchantId}) async => [];
-
 
   @override
   Future<bool> hasUnresolvedSettlementForMerchant(String merchantId) async => false;
@@ -107,6 +104,35 @@ class MockSettlementRepository implements SettlementRepository {
   Future<List<Settlement>> getAllSettlements() async => [];
 }
 
+class MockLedgerRepository implements LedgerRepository {
+  final List<Purchase> purchases;
+  MockLedgerRepository({this.purchases = const []});
+
+  @override
+  Future<List<Purchase>> getUnsettledPurchases(String merchantId) async => purchases;
+
+  @override
+  Future<Purchase> addPurchase(CreatePurchaseInput input) async => throw UnimplementedError();
+
+  @override
+  Future<int> getOutstandingAmount(String merchantId) async => 0;
+
+  @override
+  Future<List<Purchase>> getPurchases(String merchantId) async => purchases;
+
+  @override
+  Future<int> getTotalOutstanding() async => 0;
+
+  @override
+  Stream<int> watchOutstandingAmount(String merchantId) => Stream.value(0);
+
+  @override
+  Stream<List<Purchase>> watchPurchases(String merchantId) => Stream.value(purchases);
+
+  @override
+  Stream<int> watchTotalOutstanding() => Stream.value(0);
+}
+
 void main() {
   const merchantId = 'm_widget_1';
   final now = DateTime.now();
@@ -122,7 +148,7 @@ void main() {
   );
 
   group('Settlement Flow Widget Tests', () {
-    testWidgets('Clear Dues button is disabled when outstanding is 0', (tester) async {
+    testWidgets('Record Settlement button is disabled when outstanding is 0', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -144,7 +170,7 @@ void main() {
       expect(find.text('All Cleared'), findsOneWidget);
     });
 
-    testWidgets('Clear Dues button is enabled when purchases exist and opens confirmation sheet', (tester) async {
+    testWidgets('Record Settlement button is enabled when purchases exist and opens confirmation sheet', (tester) async {
       final purchase = Purchase(
         id: 'p_w_1',
         merchantId: merchantId,
@@ -174,16 +200,17 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.textContaining('Clear Dues — ₹250'), findsOneWidget);
+      expect(find.textContaining('Record Settlement — ₹250'), findsOneWidget);
 
-      // Tap Clear Dues
-      await tester.tap(find.textContaining('Clear Dues'));
+      // Tap Record Settlement
+      await tester.tap(find.textContaining('Record Settlement'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
       // Verify Settlement Confirmation Sheet opens
       expect(find.byType(SettlementConfirmationSheet), findsOneWidget);
-      expect(find.text('Clear Outstanding Dues'), findsOneWidget);
+      expect(find.text('Record Settlement'), findsWidgets);
+      expect(find.text('Mark outstanding dues as settled outside KhataFlow'), findsOneWidget);
       expect(find.text('Sharma Sweets'), findsWidgets);
       expect(
         find.descendant(
@@ -193,15 +220,65 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('1 item(s)'), findsOneWidget);
-      expect(find.textContaining('Open UPI App — ₹250'), findsOneWidget);
+      expect(find.text('Payment Reference (Optional)'), findsOneWidget);
+      expect(find.textContaining('This is a local ledger record. KhataFlow does not hold, process, or independently verify funds.'), findsOneWidget);
     });
 
-    testWidgets('Settlement Resolution Dialog renders with M3.1A 1-tap confirmation and expandable reference', (tester) async {
+    testWidgets('Settlement Confirmation Sheet records settlement with optional payment reference', (tester) async {
+      final mockRepo = MockSettlementRepository();
+      final purchase = Purchase(
+        id: 'p_w_1',
+        merchantId: merchantId,
+        amountPaise: 25000,
+        note: 'Sweets',
+        category: 'Sweets',
+        purchaseDate: now,
+        createdAt: now,
+        updatedAt: now,
+      );
+      final mockLedger = MockLedgerRepository(purchases: [purchase]);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            settlementRepositoryProvider.overrideWithValue(mockRepo),
+            ledgerRepositoryProvider.overrideWithValue(mockLedger),
+            merchantPurchasesStreamProvider(merchantId).overrideWith((ref) => Stream.value([purchase])),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SettlementConfirmationSheet(
+                merchant: mockMerchant,
+                outstandingPaise: 25000,
+                purchaseCount: 1,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      // Enter payment reference
+      await tester.enterText(find.byType(TextField), 'REF987654');
+      await tester.pump();
+
+      // Tap Record Settlement button
+      await tester.tap(find.textContaining('Record Settlement — ₹250'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(mockRepo.recordSettlementCalled, isTrue);
+      expect(mockRepo.recordedPaymentRef, equals('REF987654'));
+    });
+
+    testWidgets('Settlement Resolution Dialog renders manual resolution actions and optional payment reference', (tester) async {
       final settlement = Settlement(
         id: 's_test_dialog',
         merchantId: merchantId,
         amountPaise: 25000,
-        status: SettlementStatus.upiLaunched,
+        status: SettlementStatus.unknown,
         initiatedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -221,20 +298,19 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Did you complete the payment?'), findsOneWidget);
-      expect(find.textContaining('₹250 to Sharma Sweets'), findsOneWidget);
+      expect(find.text('Record Settlement'), findsOneWidget);
+      expect(find.textContaining('to Sharma Sweets'), findsOneWidget);
       expect(find.text('+ Add payment reference (optional)'), findsOneWidget);
-      expect(find.text('Yes, Payment Completed'), findsOneWidget);
-      expect(find.text('Payment Failed'), findsOneWidget);
+      expect(find.text('Mark as Settled'), findsOneWidget);
+      expect(find.text('Mark as Failed'), findsOneWidget);
       expect(find.text('Decide Later'), findsOneWidget);
 
-      // Expand optional reference fields
+      // Expand optional reference field
       await tester.tap(find.text('+ Add payment reference (optional)'));
       await tester.pumpAndSettle();
 
       expect(find.text('Hide payment reference'), findsOneWidget);
-      expect(find.text('UPI Reference / UTR (Optional)'), findsOneWidget);
-      expect(find.text('Transaction ID / Note (Optional)'), findsOneWidget);
+      expect(find.text('Payment Reference (Optional)'), findsOneWidget);
     });
 
     testWidgets('Unresolved settlement banner is displayed on ledger screen with Resolve button', (tester) async {
@@ -242,7 +318,7 @@ void main() {
         id: 's_unres_1',
         merchantId: merchantId,
         amountPaise: 10000,
-        status: SettlementStatus.upiLaunched,
+        status: SettlementStatus.unknown,
         initiatedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -276,44 +352,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.byType(SettlementResolutionDialog), findsOneWidget);
-      expect(find.text('Did you complete the payment?'), findsOneWidget);
+      expect(find.text('Record Settlement'), findsOneWidget);
     });
 
-    testWidgets('Tapping Open UPI App dismisses sheet and does not synchronously pop resolution dialog', (tester) async {
-      final mockUpi = MockUpiService();
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            upiServiceProvider.overrideWithValue(mockUpi),
-            merchantDetailProvider(merchantId).overrideWith((ref) => Future.value(mockMerchant)),
-            unresolvedSettlementsForMerchantProvider(merchantId).overrideWith((ref) => Future.value([])),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: SettlementConfirmationSheet(
-                merchant: mockMerchant,
-                outstandingPaise: 50000,
-                purchaseCount: 2,
-              ),
-            ),
-          ),
-        ),
-      );
-
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.textContaining('Open UPI App — ₹500'), findsOneWidget);
-      expect(find.byType(SettlementResolutionDialog), findsNothing);
-    });
-
-    testWidgets('SettlementResolutionDialog auto-expands and pre-fills captured UTR and TxnId', (tester) async {
+    testWidgets('SettlementResolutionDialog auto-expands and pre-fills captured UTR', (tester) async {
       final settlement = Settlement(
         id: 's_test_prefill',
         merchantId: merchantId,
         amountPaise: 25000,
-        status: SettlementStatus.upiLaunched,
+        status: SettlementStatus.unknown,
         initiatedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -327,7 +374,6 @@ void main() {
               merchantName: 'Sharma Sweets',
               initialUtr: '423456789012',
               initialTxnId: 'AXI123456789',
-              initialUpiStatus: 'SUCCESS',
             ),
           ),
         ),
@@ -336,9 +382,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Should automatically expand and show pre-filled values
+      // Should automatically expand and show pre-filled value
       expect(find.text('423456789012'), findsOneWidget);
-      expect(find.text('AXI123456789'), findsOneWidget);
       expect(find.text('Hide payment reference'), findsOneWidget);
     });
 
@@ -348,7 +393,7 @@ void main() {
         id: 's_test_dup',
         merchantId: merchantId,
         amountPaise: 10000,
-        status: SettlementStatus.upiLaunched,
+        status: SettlementStatus.unknown,
         initiatedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -390,7 +435,7 @@ void main() {
       expect(find.byType(SettlementResolutionDialog), findsOneWidget);
     });
 
-    testWidgets('User confirmation records settlement as SETTLED with optional metadata', (tester) async {
+    testWidgets('User confirmation in resolution dialog records settlement as SETTLED with optional metadata', (tester) async {
       SettlementResolutionDialog.isShowing = false;
       final mockRepo = MockSettlementRepository();
 
@@ -398,7 +443,7 @@ void main() {
         id: 's_test_confirm',
         merchantId: merchantId,
         amountPaise: 25000,
-        status: SettlementStatus.upiLaunched,
+        status: SettlementStatus.unknown,
         initiatedAt: now,
         createdAt: now,
         updatedAt: now,
@@ -425,8 +470,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Yes, Payment Completed'), findsOneWidget);
-      await tester.tap(find.text('Yes, Payment Completed'));
+      expect(find.text('Mark as Settled'), findsOneWidget);
+      await tester.tap(find.text('Mark as Settled'));
       await tester.pumpAndSettle();
 
       expect(mockRepo.markSettledCalled, isTrue);

@@ -22,13 +22,6 @@ class CurrencyFormatter {
     return '$prefix$formattedRupees.$paddedPaise';
   }
 
-  /// Converts paise (int) to standard decimal string for UPI intent amount (e.g. 77050 -> "770.50", 100 -> "1.00")
-  static String paiseToUpiAmount(int paise) {
-    final int rupees = paise ~/ 100;
-    final int paiseRemainder = paise % 100;
-    return '$rupees.${paiseRemainder.toString().padLeft(2, '0')}';
-  }
-
   /// Converts integer rupees input to integer paise.
   static int rupeesToPaise(int rupees) {
     return rupees * 100;

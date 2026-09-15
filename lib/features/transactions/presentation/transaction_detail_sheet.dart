@@ -67,12 +67,6 @@ class TransactionDetailSheet extends ConsumerWidget {
         statusIcon = Icons.help_outline_rounded;
         statusLabel = 'Pending Confirmation';
         break;
-      case SettlementStatus.upiLaunched:
-        statusColor = Colors.amber.shade800;
-        statusBgColor = Colors.amber.withValues(alpha: 0.15);
-        statusIcon = Icons.open_in_new_rounded;
-        statusLabel = 'UPI Launched';
-        break;
       case SettlementStatus.initiated:
         statusColor = Colors.blue.shade700;
         statusBgColor = Colors.blue.withValues(alpha: 0.12);
@@ -82,7 +76,6 @@ class TransactionDetailSheet extends ConsumerWidget {
     }
 
     final isUnresolved = status == SettlementStatus.initiated ||
-        status == SettlementStatus.upiLaunched ||
         status == SettlementStatus.unknown;
 
     return Container(
@@ -183,7 +176,7 @@ class TransactionDetailSheet extends ConsumerWidget {
               const Divider(height: 24),
               _buildDetailRow(
                 icon: Icons.tag_rounded,
-                label: 'UPI Reference (UTR)',
+                label: 'Payment Reference',
                 value: settlement.utr!,
                 canCopy: true,
                 context: context,
@@ -227,7 +220,7 @@ class TransactionDetailSheet extends ConsumerWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'KhataFlow records customer-verified settlements locally. Transfers occur peer-to-peer via your UPI app.',
+                      'This is a local ledger record. KhataFlow does not hold, process, or independently verify funds.',
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondaryDark,

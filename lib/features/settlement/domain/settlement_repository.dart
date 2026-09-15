@@ -3,6 +3,14 @@ import 'settlement.dart';
 import 'settlement_status.dart';
 
 abstract class SettlementRepository {
+  /// Records a settlement for the given purchases atomically in the local ledger,
+  /// marking them as SETTLED with an optional user-entered payment reference.
+  Future<Settlement> recordSettlement({
+    required String merchantId,
+    required List<String> purchaseIds,
+    String? paymentReference,
+  });
+
   /// Initiates a settlement for the given purchases after verifying they are valid
   /// and not part of an existing unresolved settlement.
   Future<Settlement> initiateSettlement({
@@ -17,9 +25,6 @@ abstract class SettlementRepository {
     String? transactionId,
     String? utr,
   });
-
-  /// Marks a settlement as UPI_LAUNCHED.
-  Future<void> markUpiLaunched(String settlementId);
 
   /// Marks a settlement as SETTLED upon manual user confirmation.
   Future<void> markSettlementSettled({

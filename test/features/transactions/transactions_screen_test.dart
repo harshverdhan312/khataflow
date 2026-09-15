@@ -126,8 +126,8 @@ void main() {
       expect(find.text('Failed'), findsOneWidget);
       expect(find.text('Pending'), findsOneWidget);
 
-      // Check UTR indicator
-      expect(find.text('UTR: 423456789012'), findsOneWidget);
+      // Check Ref indicator
+      expect(find.text('Ref: 423456789012'), findsOneWidget);
     });
 
     testWidgets('tapping a transaction card opens TransactionDetailSheet with full details', (tester) async {

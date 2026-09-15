@@ -1,6 +1,5 @@
 enum SettlementStatus {
   initiated,
-  upiLaunched,
   settled,
   failed,
   unknown;
@@ -9,8 +8,6 @@ enum SettlementStatus {
     switch (this) {
       case SettlementStatus.initiated:
         return 'INITIATED';
-      case SettlementStatus.upiLaunched:
-        return 'UPI_LAUNCHED';
       case SettlementStatus.settled:
         return 'SETTLED';
       case SettlementStatus.failed:
@@ -25,7 +22,7 @@ enum SettlementStatus {
       case 'INITIATED':
         return SettlementStatus.initiated;
       case 'UPI_LAUNCHED':
-        return SettlementStatus.upiLaunched;
+        return SettlementStatus.unknown;
       case 'SETTLED':
       case 'SUCCESS': // Map legacy/transient SUCCESS to SETTLED
         return SettlementStatus.settled;
@@ -40,6 +37,6 @@ enum SettlementStatus {
 
   bool get isTerminal => this == SettlementStatus.settled || this == SettlementStatus.failed;
   bool get isSettled => this == SettlementStatus.settled;
-  bool get isUnresolved => this == SettlementStatus.initiated || this == SettlementStatus.upiLaunched || this == SettlementStatus.unknown;
+  bool get isUnresolved => this == SettlementStatus.initiated || this == SettlementStatus.unknown;
 }
 

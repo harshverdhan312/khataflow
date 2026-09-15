@@ -27,71 +27,19 @@ class LedgerScreen extends ConsumerStatefulWidget {
   ConsumerState<LedgerScreen> createState() => _LedgerScreenState();
 }
 
-class _LedgerScreenState extends ConsumerState<LedgerScreen>
-    with WidgetsBindingObserver {
+class _LedgerScreenState extends ConsumerState<LedgerScreen> {
   bool _isResolutionDialogShowing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // If a native UPI intent is actively awaiting ActivityResult over MethodChannel,
-      // allow the authoritative MethodChannel callback to handle the dialog with metadata.
-      final isLaunchInFlight = ref.read(settlementControllerProvider).isLoading;
-      if (!isLaunchInFlight) {
-        _checkAndPromptUnresolvedSettlement();
-      }
-    }
-  }
-
-  Future<void> _checkAndPromptUnresolvedSettlement() async {
-    if (!mounted || _isResolutionDialogShowing) return;
-    final repo = ref.read(settlementRepositoryProvider);
-    final unresolved = await repo.getUnresolvedSettlements(merchantId: widget.merchantId);
-    if (!mounted || _isResolutionDialogShowing || unresolved.isEmpty) return;
-
-    final merchant = ref.read(merchantDetailProvider(widget.merchantId)).value;
-    if (merchant == null) return;
-
-    final launchResult = ref.read(settlementControllerProvider).launchResult;
-
-    _isResolutionDialogShowing = true;
-    await SettlementResolutionDialog.show(
-      context,
-      settlement: unresolved.first,
-      merchantName: merchant.name,
-      initialUtr: launchResult?.approvalRefNo,
-      initialTxnId: launchResult?.txnId,
-      initialUpiStatus: launchResult?.upiStatus,
-    );
-    if (mounted) {
-      _isResolutionDialogShowing = false;
-    }
-  }
 
   Future<void> _showManualResolutionDialog(Settlement settlement, String merchantName) async {
     if (_isResolutionDialogShowing) return;
-    final launchResult = ref.read(settlementControllerProvider).launchResult;
 
     _isResolutionDialogShowing = true;
     await SettlementResolutionDialog.show(
       context,
       settlement: settlement,
       merchantName: merchantName,
-      initialUtr: launchResult?.approvalRefNo,
-      initialTxnId: launchResult?.txnId,
-      initialUpiStatus: launchResult?.upiStatus,
+      initialUtr: settlement.utr,
+      initialTxnId: settlement.transactionId,
     );
     if (mounted) {
       _isResolutionDialogShowing = false;
@@ -621,10 +569,6 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen>
           badgeBgColor = AppColors.outstandingRed.withValues(alpha: 0.15);
           badgeTextColor = AppColors.outstandingRed;
           statusLabel = 'FAILED';
-        } else if (settlement.status == SettlementStatus.upiLaunched) {
-          badgeBgColor = AppColors.pendingAmber.withValues(alpha: 0.15);
-          badgeTextColor = AppColors.pendingAmber;
-          statusLabel = 'UPI LAUNCHED';
         } else if (settlement.status == SettlementStatus.initiated) {
           badgeBgColor = AppColors.primary.withValues(alpha: 0.15);
           badgeTextColor = AppColors.primary;
@@ -861,7 +805,7 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              'Once you clear dues via UPI with ${merchant.name}, settled and pending payment records will appear here.',
+              'Once you record settlements with ${merchant.name}, settled records will appear here.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 13,
@@ -1006,12 +950,12 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen>
                             );
                           }
                         : null),
-                icon: Icon(hasPendingSettlement ? Icons.pending : Icons.payment),
+                icon: Icon(hasPendingSettlement ? Icons.pending : Icons.check_circle_outline),
                 label: Text(
                   hasPendingSettlement
                       ? 'Resolve Pending'
                       : (hasOutstanding
-                          ? 'Clear Dues — ${CurrencyFormatter.formatPaise(outstandingPaise)}'
+                          ? 'Record Settlement — ${CurrencyFormatter.formatPaise(outstandingPaise)}'
                           : 'All Cleared'),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,

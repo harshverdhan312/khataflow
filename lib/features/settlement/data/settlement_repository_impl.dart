@@ -16,6 +16,107 @@ class SettlementRepositoryImpl implements SettlementRepository {
   SettlementRepositoryImpl(this._db, [this._uuid = const Uuid()]);
 
   @override
+  Future<Settlement> recordSettlement({
+    required String merchantId,
+    required List<String> purchaseIds,
+    String? paymentReference,
+  }) async {
+    if (purchaseIds.isEmpty) {
+      throw ArgumentError('Cannot record settlement without purchases.');
+    }
+
+    final merchant = await _db.merchantDao.getMerchantById(merchantId);
+    if (merchant == null) {
+      throw ArgumentError('Merchant $merchantId does not exist.');
+    }
+
+    final unsettledPurchases = await _db.purchaseDao.getUnsettledPurchases(merchantId);
+    final purchaseMap = {for (final p in unsettledPurchases) p.id: p};
+
+    final itemsToSettle = <SettlementItemsCompanion>[];
+    int totalAmountPaise = 0;
+
+    final settlementId = _uuid.v4();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    for (final purchaseId in purchaseIds) {
+      final purchase = purchaseMap[purchaseId];
+      if (purchase == null) {
+        throw ArgumentError(
+          'Purchase $purchaseId is either already settled or does not belong to merchant $merchantId.',
+        );
+      }
+      totalAmountPaise += purchase.amountPaise;
+      itemsToSettle.add(
+        SettlementItemsCompanion.insert(
+          settlementId: settlementId,
+          purchaseId: purchaseId,
+          amountPaise: purchase.amountPaise,
+        ),
+      );
+    }
+
+    if (totalAmountPaise <= 0) {
+      throw ArgumentError('Settlement amount must be greater than zero.');
+    }
+
+    final settlementCompanion = SettlementsCompanion.insert(
+      id: settlementId,
+      merchantId: merchantId,
+      amountPaise: totalAmountPaise,
+      status: SettlementStatus.settled.toDbValue(),
+      utr: (paymentReference != null && paymentReference.trim().isNotEmpty)
+          ? Value(paymentReference.trim())
+          : const Value.absent(),
+      initiatedAt: now,
+      completedAt: Value(now),
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: const Value('PENDING'),
+    );
+
+    final syncEntry = SyncQueueCompanion.insert(
+      id: _uuid.v4(),
+      entityType: 'SETTLEMENT',
+      entityId: settlementId,
+      operation: 'INSERT',
+      createdAt: now,
+    );
+
+    await _db.settlementDao.insertSettlementWithItemsAndSync(
+      settlement: settlementCompanion,
+      items: itemsToSettle,
+      syncEntry: syncEntry,
+    );
+
+    final domainItems = itemsToSettle
+        .map(
+          (item) => SettlementItem(
+            settlementId: settlementId,
+            purchaseId: item.purchaseId.value,
+            amountPaise: item.amountPaise.value,
+          ),
+        )
+        .toList();
+
+    return Settlement(
+      id: settlementId,
+      merchantId: merchantId,
+      amountPaise: totalAmountPaise,
+      status: SettlementStatus.settled,
+      utr: (paymentReference != null && paymentReference.trim().isNotEmpty)
+          ? paymentReference.trim()
+          : null,
+      initiatedAt: DateTime.fromMillisecondsSinceEpoch(now),
+      completedAt: DateTime.fromMillisecondsSinceEpoch(now),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(now),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(now),
+      syncStatus: SyncStatus.pending,
+      items: domainItems,
+    );
+  }
+
+  @override
   Future<Settlement> initiateSettlement({
     required String merchantId,
     required List<String> purchaseIds,
@@ -128,16 +229,6 @@ class SettlementRepositoryImpl implements SettlementRepository {
       transactionId: transactionId,
       utr: utr,
       completedAt: isTerminal ? now : null,
-      updatedAt: now,
-    );
-  }
-
-  @override
-  Future<void> markUpiLaunched(String settlementId) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    await _db.settlementDao.updateSettlementStatus(
-      settlementId: settlementId,
-      status: SettlementStatus.upiLaunched.toDbValue(),
       updatedAt: now,
     );
   }

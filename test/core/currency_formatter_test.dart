@@ -38,16 +38,6 @@ void main() {
       });
     });
 
-    group('paiseToUpiAmount', () {
-      test('converts paise to UPI decimal string without floating point inaccuracies', () {
-        expect(CurrencyFormatter.paiseToUpiAmount(0), equals('0.00'));
-        expect(CurrencyFormatter.paiseToUpiAmount(50), equals('0.50'));
-        expect(CurrencyFormatter.paiseToUpiAmount(100), equals('1.00'));
-        expect(CurrencyFormatter.paiseToUpiAmount(10050), equals('100.50'));
-        expect(CurrencyFormatter.paiseToUpiAmount(999999), equals('9999.99'));
-      });
-    });
-
     group('rupeesToPaise', () {
       test('converts integer rupees to paise', () {
         expect(CurrencyFormatter.rupeesToPaise(1), equals(100));

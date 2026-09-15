@@ -136,7 +136,7 @@ void main() {
       expect(find.text('sharma@oksbi'), findsWidgets);
 
       // Metadata
-      expect(find.text('Payment Reference (UTR)'), findsOneWidget);
+      expect(find.text('Payment Reference'), findsOneWidget);
       expect(find.text('UTR9988776655'), findsOneWidget);
       expect(find.text('Transaction ID'), findsOneWidget);
       expect(find.text('TXN1122334455'), findsOneWidget);
@@ -198,7 +198,7 @@ void main() {
       expect(find.text('Snacks'), findsOneWidget);
 
       // Ensure optional metadata fields are not displayed
-      expect(find.text('Payment Reference (UTR)'), findsNothing);
+      expect(find.text('Payment Reference'), findsNothing);
       expect(find.text('Transaction ID'), findsNothing);
     });
 

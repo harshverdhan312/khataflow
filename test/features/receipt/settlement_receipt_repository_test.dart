@@ -220,13 +220,13 @@ void main() {
       expect(receipt, isNull);
     });
 
-    test('returns null for UPI_LAUNCHED settlement', () async {
+    test('returns null for UNKNOWN (legacy UPI_LAUNCHED) settlement', () async {
       await db.settlementDao.insertSettlementWithItems(
         settlement: SettlementsCompanion.insert(
           id: settlementId,
           merchantId: merchantId,
           amountPaise: 50000,
-          status: SettlementStatus.upiLaunched.toDbValue(),
+          status: 'UPI_LAUNCHED',
           initiatedAt: now,
           createdAt: now,
           updatedAt: now,

@@ -11,7 +11,6 @@ class SettlementResolutionDialog extends ConsumerStatefulWidget {
   final String merchantName;
   final String? initialUtr;
   final String? initialTxnId;
-  final String? initialUpiStatus;
 
   static bool isShowing = false;
 
@@ -21,7 +20,6 @@ class SettlementResolutionDialog extends ConsumerStatefulWidget {
     required this.merchantName,
     this.initialUtr,
     this.initialTxnId,
-    this.initialUpiStatus,
   });
 
   static Future<void> show(
@@ -30,7 +28,6 @@ class SettlementResolutionDialog extends ConsumerStatefulWidget {
     required String merchantName,
     String? initialUtr,
     String? initialTxnId,
-    String? initialUpiStatus,
   }) async {
     if (isShowing) return;
     isShowing = true;
@@ -43,7 +40,6 @@ class SettlementResolutionDialog extends ConsumerStatefulWidget {
           merchantName: merchantName,
           initialUtr: initialUtr,
           initialTxnId: initialTxnId,
-          initialUpiStatus: initialUpiStatus,
         ),
       );
     } finally {
@@ -197,7 +193,7 @@ class _SettlementResolutionDialogState
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              'Did you complete the payment?',
+              'Record Settlement',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
@@ -254,13 +250,12 @@ class _SettlementResolutionDialogState
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'KhataFlow does not hold funds or independently verify bank transfers. Please confirm the result from your UPI app.',
+                      'KhataFlow is a local credit ledger and does not hold funds or independently verify bank transfers. Please record the settlement status.',
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textPrimaryDark,
                       ),
                     ),
-
                   ),
                 ],
               ),
@@ -302,7 +297,7 @@ class _SettlementResolutionDialogState
               TextField(
                 controller: _utrController,
                 decoration: const InputDecoration(
-                  labelText: 'UPI Reference / UTR (Optional)',
+                  labelText: 'Payment Reference (Optional)',
                   hintText: 'e.g. 423456789012',
                   border: OutlineInputBorder(),
                   isDense: true,
@@ -313,8 +308,8 @@ class _SettlementResolutionDialogState
               TextField(
                 controller: _txnIdController,
                 decoration: const InputDecoration(
-                  labelText: 'Transaction ID / Note (Optional)',
-                  hintText: 'e.g. T240909...',
+                  labelText: 'Transaction Note (Optional)',
+                  hintText: 'e.g. Paid in cash / Netbanking',
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -347,7 +342,7 @@ class _SettlementResolutionDialogState
                   ),
                 ),
                 child: const Text(
-                  'Yes, Payment Completed',
+                  'Mark as Settled',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -364,7 +359,7 @@ class _SettlementResolutionDialogState
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: const Text('Payment Failed'),
+                      child: const Text('Mark as Failed'),
                     ),
                   ),
                   const SizedBox(width: 8),

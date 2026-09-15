@@ -102,12 +102,6 @@ class TransactionsScreen extends ConsumerWidget {
                   statusLabel = 'Pending';
                   statusIcon = Icons.help_outline;
                   break;
-                case SettlementStatus.upiLaunched:
-                  statusColor = AppColors.pendingAmber;
-                  statusBgColor = AppColors.pendingAmber.withValues(alpha: 0.15);
-                  statusLabel = 'UPI Launched';
-                  statusIcon = Icons.open_in_new;
-                  break;
                 case SettlementStatus.initiated:
                   statusColor = AppColors.primary;
                   statusBgColor = AppColors.primary.withValues(alpha: 0.15);
@@ -199,7 +193,7 @@ class TransactionsScreen extends ConsumerWidget {
                                   if (s.utr != null && s.utr!.isNotEmpty) ...[
                                     const SizedBox(width: 6),
                                     Text(
-                                      'UTR: ${s.utr}',
+                                      'Ref: ${s.utr}',
                                       style: const TextStyle(
                                         fontSize: 11,
                                         color: AppColors.textSecondaryDark,

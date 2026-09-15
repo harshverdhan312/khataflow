@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'receipt_share_service.dart';
 
 class NativeReceiptShareService implements ReceiptShareService {
-  static const MethodChannel _channel = MethodChannel('dev.khataflow.app/upi');
+  static const MethodChannel _channel = MethodChannel('dev.khataflow.app/share');
 
   const NativeReceiptShareService();
 

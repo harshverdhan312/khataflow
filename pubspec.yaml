@@ -1,5 +1,5 @@
 name: khata_flow
-description: "KhataFlow - Offline-first personal credit ledger with native UPI settlement"
+description: "KhataFlow - Offline-first personal credit ledger with manual settlement recording"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -21,7 +21,6 @@ dependencies:
   uuid: ^4.5.1
   intl: ^0.19.0
   meta: ^1.15.0
-  url_launcher: ^6.3.1
   pdf: ^3.11.1
 
 

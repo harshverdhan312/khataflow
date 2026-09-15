@@ -237,11 +237,11 @@ class _SettlementReceiptScreenState extends ConsumerState<SettlementReceiptScree
                     ),
                   ],
 
-                  // Payment Reference / UTR
+                  // Payment Reference
                   if (receipt.utr != null && receipt.utr!.isNotEmpty) ...[
                     const SizedBox(height: 14),
                     _buildMetaRow(
-                      label: 'Payment Reference (UTR)',
+                      label: 'Payment Reference',
                       value: receipt.utr!,
                       canCopy: true,
                       context: context,
