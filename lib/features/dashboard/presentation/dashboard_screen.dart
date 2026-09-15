@@ -8,6 +8,7 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/presentation/merchant_providers.dart';
+import '../../voice/presentation/voice_entry_sheet.dart';
 import '../domain/dashboard_summary.dart';
 import 'dashboard_providers.dart';
 
@@ -36,6 +37,14 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            onPressed: () => VoiceEntrySheet.show(context),
+            icon: const Icon(Icons.mic_rounded),
+            tooltip: 'Voice Ledger',
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: summaryAsync.when(
         data: (summary) {

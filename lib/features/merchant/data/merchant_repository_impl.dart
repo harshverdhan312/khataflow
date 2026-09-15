@@ -47,7 +47,7 @@ class MerchantRepositoryImpl implements MerchantRepository {
     final nameError = Validators.validateMerchantName(input.name);
     if (nameError != null) throw ValidationException(nameError);
 
-    final vpaError = Validators.validateUpiVpa(input.upiVpa);
+    final vpaError = Validators.validateUpiVpa(input.upiVpa, isOptional: true);
     if (vpaError != null) throw ValidationException(vpaError);
 
     final phoneError = Validators.validatePhone(input.phone);

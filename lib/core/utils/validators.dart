@@ -22,9 +22,9 @@ class Validators {
     return null;
   }
 
-  static String? validateUpiVpa(String? value) {
+  static String? validateUpiVpa(String? value, {bool isOptional = false}) {
     if (value == null || value.trim().isEmpty) {
-      return 'UPI ID is required';
+      return isOptional ? null : 'UPI ID is required';
     }
     final trimmed = value.trim();
     if (!_vpaRegex.hasMatch(trimmed)) {
