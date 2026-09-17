@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_database.dart';
+import 'daos/expense_dao.dart';
 import 'daos/merchant_dao.dart';
 import 'daos/purchase_dao.dart';
 import 'daos/settlement_dao.dart';
@@ -26,3 +27,8 @@ final settlementDaoProvider = Provider<SettlementDao>((ref) {
 final syncQueueDaoProvider = Provider<SyncQueueDao>((ref) {
   return ref.watch(appDatabaseProvider).syncQueueDao;
 });
+
+final expenseDaoProvider = Provider<ExpenseDao>((ref) {
+  return ref.watch(appDatabaseProvider).expenseDao;
+});
+

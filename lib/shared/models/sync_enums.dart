@@ -2,7 +2,8 @@ enum SyncEntityType {
   merchant,
   purchase,
   settlement,
-  settlementItem;
+  settlementItem,
+  expense;
 
   String toDbValue() {
     switch (this) {
@@ -14,6 +15,8 @@ enum SyncEntityType {
         return 'SETTLEMENT';
       case SyncEntityType.settlementItem:
         return 'SETTLEMENT_ITEM';
+      case SyncEntityType.expense:
+        return 'EXPENSE';
     }
   }
 
@@ -27,6 +30,8 @@ enum SyncEntityType {
         return SyncEntityType.settlement;
       case 'SETTLEMENT_ITEM':
         return SyncEntityType.settlementItem;
+      case 'EXPENSE':
+        return SyncEntityType.expense;
       default:
         throw ArgumentError('Unknown SyncEntityType: $value');
     }

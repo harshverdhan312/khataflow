@@ -1,3 +1,5 @@
+import 'currency_formatter.dart';
+
 class Validators {
   // UPI VPA Regex standard: username@bank/handle
   static final RegExp _vpaRegex = RegExp(
@@ -69,6 +71,37 @@ class Validators {
   static String? validatePurchaseNote(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Note / item description is required';
+    }
+    if (value.trim().length > 200) {
+      return 'Note must be less than 200 characters';
+    }
+    return null;
+  }
+
+  static String? validateExpenseAmount(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Amount is required';
+    }
+    final cleaned = value.replaceAll('₹', '').replaceAll(',', '').trim();
+    try {
+      final paise = CurrencyFormatter.parseInputToPaise(cleaned);
+      if (paise > 100000000) {
+        return 'Amount exceeds maximum limit (₹10,00,000)';
+      }
+    } on FormatException catch (e) {
+      if (e.message.contains('greater than zero')) {
+        return 'Amount must be greater than ₹0';
+      }
+      return 'Enter a valid amount (e.g. 250 or 99.50)';
+    } catch (_) {
+      return 'Enter a valid amount';
+    }
+    return null;
+  }
+
+  static String? validateExpenseNote(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Expense note is optional
     }
     if (value.trim().length > 200) {
       return 'Note must be less than 200 characters';

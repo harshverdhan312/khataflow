@@ -31,6 +31,12 @@ class InvalidAmountException extends AppException {
       : super(message, 'INVALID_AMOUNT');
 }
 
+class ExpenseNotFoundException extends AppException {
+  const ExpenseNotFoundException([String message = 'Expense not found'])
+      : super(message, 'EXPENSE_NOT_FOUND');
+}
+
 class SettlementException extends AppException {
   const SettlementException(super.message, [super.code]);
 }
+

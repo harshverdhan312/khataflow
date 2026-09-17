@@ -4,7 +4,7 @@ class AppConstants {
   
   // Storage & Database
   static const String databaseName = 'khata_flow.sqlite';
-  static const int databaseSchemaVersion = 1;
+  static const int databaseSchemaVersion = 2;
   
   // Formatting
   static const String currencySymbol = '₹';
