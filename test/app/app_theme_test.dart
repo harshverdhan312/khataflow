@@ -6,6 +6,7 @@ import 'package:khata_flow/app/theme/app_colors.dart';
 import 'package:khata_flow/app/theme/app_theme.dart';
 import 'package:khata_flow/features/dashboard/domain/dashboard_summary.dart';
 import 'package:khata_flow/features/dashboard/presentation/dashboard_providers.dart';
+import 'package:khata_flow/features/expense/presentation/expense_providers.dart';
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
 import 'package:khata_flow/features/transactions/presentation/transactions_providers.dart';
 
@@ -27,6 +28,9 @@ void main() {
               (ref) => Stream.value([]),
             ),
             allTransactionsStreamProvider.overrideWith(
+              (ref) => Stream.value([]),
+            ),
+            expensesStreamProvider.overrideWith(
               (ref) => Stream.value([]),
             ),
           ],

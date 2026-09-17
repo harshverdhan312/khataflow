@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
+import '../../expense/presentation/expense_history_screen.dart';
 import '../../transactions/presentation/transactions_screen.dart';
 
-class MainNavScreen extends StatefulWidget {
+final mainNavIndexProvider = StateProvider<int>((ref) => 0);
+
+class MainNavScreen extends ConsumerStatefulWidget {
   final int initialIndex;
 
   const MainNavScreen({
@@ -12,29 +16,36 @@ class MainNavScreen extends StatefulWidget {
   });
 
   @override
-  State<MainNavScreen> createState() => _MainNavScreenState();
+  ConsumerState<MainNavScreen> createState() => _MainNavScreenState();
 }
 
-class _MainNavScreenState extends State<MainNavScreen> {
-  late int _currentIndex;
-
+class _MainNavScreenState extends ConsumerState<MainNavScreen> {
   final List<Widget> _screens = const [
     DashboardScreen(),
+    ExpenseHistoryScreen(),
     TransactionsScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    if (widget.initialIndex != 0) {
+      Future.microtask(() {
+        if (mounted) {
+          ref.read(mainNavIndexProvider.notifier).state = widget.initialIndex;
+        }
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(mainNavIndexProvider);
+
     return Scaffold(
       backgroundColor: AppColors.surfaceDark,
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: Container(
@@ -45,11 +56,9 @@ class _MainNavScreenState extends State<MainNavScreen> {
           ),
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: currentIndex,
           onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
+            ref.read(mainNavIndexProvider.notifier).state = index;
           },
           selectedItemColor: AppColors.primary,
           unselectedItemColor: AppColors.textSecondaryDark,
@@ -67,6 +76,11 @@ class _MainNavScreenState extends State<MainNavScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long_outlined),
               activeIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Expenses',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.payments_outlined),
+              activeIcon: Icon(Icons.payments_rounded),
               label: 'Transactions',
             ),
           ],
