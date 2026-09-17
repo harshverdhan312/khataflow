@@ -10,7 +10,10 @@ import '../../merchant/domain/merchant.dart';
 import '../../merchant/domain/merchant_category.dart';
 import '../../merchant/domain/merchant_repository.dart';
 import '../../settlement/domain/settlement_repository.dart';
+import '../domain/ai_voice_fallback_service.dart';
 import '../domain/merchant_resolver.dart';
+import '../domain/semantic_voice_command_resolver.dart';
+import '../domain/semantic_voice_result.dart';
 import '../domain/voice_command.dart';
 import '../domain/voice_command_parser.dart';
 import '../domain/voice_transcript.dart';
@@ -28,6 +31,8 @@ class VoiceController extends StateNotifier<VoiceState> {
   final SettlementRepository settlementRepository;
   final ExpenseRepository expenseRepository;
   final MerchantResolver merchantResolver;
+  final AiVoiceFallbackService? aiFallbackService;
+  final SemanticVoiceCommandResolver semanticCommandResolver;
 
   VoiceController({
     required this.voiceService,
@@ -37,6 +42,8 @@ class VoiceController extends StateNotifier<VoiceState> {
     required this.settlementRepository,
     required this.expenseRepository,
     this.merchantResolver = const MerchantResolver(),
+    this.aiFallbackService,
+    this.semanticCommandResolver = const SemanticVoiceCommandResolver(),
   }) : super(const VoiceState());
 
   /// Starts listening to microphone input in the currently selected locale.
@@ -54,6 +61,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
+      clearPendingInterpretation: true,
     );
 
     try {
@@ -133,6 +141,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
+      clearPendingInterpretation: true,
     );
   }
 
@@ -150,14 +159,84 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
+      clearPendingInterpretation: true,
     );
 
     // 1. Deterministic Parse
     final parseResult = parser.parse(transcript);
     if (parseResult is VoiceParseFailure) {
+      if (aiFallbackService != null) {
+        try {
+          final fallbackResult = await aiFallbackService!.interpret(transcript.text);
+          if (fallbackResult is SemanticVoiceSuccess) {
+            final activeMerchants = await merchantRepository.getActiveMerchants();
+            final resolution = semanticCommandResolver.resolve(
+              interpretation: fallbackResult.interpretation,
+              activeMerchants: activeMerchants,
+            );
+
+            switch (resolution) {
+              case SemanticVoiceResolved(:final command, :final resolvedMerchant):
+                int? liveOutstanding;
+                if (command is SettleMerchantCommand && resolvedMerchant != null) {
+                  liveOutstanding = await ledgerRepository.getOutstandingAmount(resolvedMerchant.id);
+                }
+                state = state.copyWith(
+                  status: VoiceStatus.commandReady,
+                  command: command,
+                  resolvedMerchant: resolvedMerchant,
+                  outstandingPaiseToSettle: liveOutstanding,
+                  pendingCategory: command is CreateMerchantCommand ? command.category : null,
+                  pendingExpenseCategory: command is AddExpenseCommand ? command.category : null,
+                  pendingUpiVpa: command is CreateMerchantCommand ? command.upiVpa : null,
+                  pendingPaymentReference: command is RecordSettlementCommand ? command.paymentReference : null,
+                  clearCandidates: true,
+                  clearError: true,
+                  clearPendingInterpretation: true,
+                );
+                return;
+
+              case SemanticVoiceAmbiguous(:final candidateMerchants, :final interpretation):
+                state = state.copyWith(
+                  status: VoiceStatus.ambiguousMerchant,
+                  candidateMerchants: candidateMerchants,
+                  pendingInterpretation: interpretation,
+                  clearMerchant: true,
+                  clearCommand: true,
+                  clearError: true,
+                );
+                return;
+
+              case SemanticVoiceResolutionFailure(:final reason):
+                state = state.copyWith(
+                  status: VoiceStatus.error,
+                  errorMessage: reason,
+                  clearPendingInterpretation: true,
+                );
+                return;
+            }
+          } else if (fallbackResult is SemanticVoiceUnresolved) {
+            state = state.copyWith(
+              status: VoiceStatus.error,
+              errorMessage: fallbackResult.failureReason ?? parseResult.errorMessage,
+              clearPendingInterpretation: true,
+            );
+            return;
+          }
+        } catch (e) {
+          state = state.copyWith(
+            status: VoiceStatus.error,
+            errorMessage: 'AI voice understanding error: ${e.toString()}',
+            clearPendingInterpretation: true,
+          );
+          return;
+        }
+      }
+
       state = state.copyWith(
         status: VoiceStatus.error,
         errorMessage: parseResult.errorMessage,
+        clearPendingInterpretation: true,
       );
       return;
     }
@@ -173,6 +252,7 @@ class VoiceController extends StateNotifier<VoiceState> {
         clearMerchant: true,
         clearCandidates: true,
         clearError: true,
+        clearPendingInterpretation: true,
       );
       return;
     }
@@ -195,6 +275,7 @@ class VoiceController extends StateNotifier<VoiceState> {
               command: command,
               clearMerchant: true,
               clearCandidates: true,
+              clearPendingInterpretation: true,
               errorMessage: 'Merchant "${merchant.name}" already exists.',
             );
           case AmbiguousMerchantMatch(:final candidates):
@@ -204,6 +285,7 @@ class VoiceController extends StateNotifier<VoiceState> {
               candidateMerchants: candidates,
               clearMerchant: true,
               clearError: true,
+              clearPendingInterpretation: true,
             );
           case NoMerchantMatch():
             state = state.copyWith(
@@ -214,6 +296,7 @@ class VoiceController extends StateNotifier<VoiceState> {
               clearMerchant: true,
               clearCandidates: true,
               clearError: true,
+              clearPendingInterpretation: true,
             );
         }
         return;
@@ -246,6 +329,7 @@ class VoiceController extends StateNotifier<VoiceState> {
             outstandingPaiseToSettle: liveOutstanding,
             clearCandidates: true,
             clearError: true,
+            clearPendingInterpretation: true,
           );
         case AmbiguousMerchantMatch(:final candidates):
           state = state.copyWith(
@@ -254,6 +338,7 @@ class VoiceController extends StateNotifier<VoiceState> {
             candidateMerchants: candidates,
             clearMerchant: true,
             clearError: true,
+            clearPendingInterpretation: true,
           );
         case NoMerchantMatch(:final query):
           state = state.copyWith(
@@ -261,6 +346,7 @@ class VoiceController extends StateNotifier<VoiceState> {
             command: command,
             clearMerchant: true,
             clearCandidates: true,
+            clearPendingInterpretation: true,
             errorMessage: 'Merchant "$query" not found. We couldn\'t find a matching active store.',
           );
       }
@@ -268,13 +354,69 @@ class VoiceController extends StateNotifier<VoiceState> {
       state = state.copyWith(
         status: VoiceStatus.error,
         errorMessage: 'Failed to resolve merchant: ${e.toString()}',
+        clearPendingInterpretation: true,
       );
     }
   }
 
   /// Selects a candidate merchant when multiple stores matched the query.
   Future<void> selectCandidateMerchant(Merchant merchant) async {
-    if (state.status != VoiceStatus.ambiguousMerchant || state.command == null) {
+    if (state.status != VoiceStatus.ambiguousMerchant) {
+      return;
+    }
+
+    // Path A: Resolving ambiguous AI semantic interpretation freshly
+    if (state.pendingInterpretation != null) {
+      try {
+        final activeMerchants = await merchantRepository.getActiveMerchants();
+        final resolution = semanticCommandResolver.resolveWithSelectedMerchant(
+          interpretation: state.pendingInterpretation!,
+          selectedMerchant: merchant,
+          activeMerchants: activeMerchants,
+        );
+
+        switch (resolution) {
+          case SemanticVoiceResolved(:final command, :final resolvedMerchant):
+            int? liveOutstanding;
+            if (command is SettleMerchantCommand && resolvedMerchant != null) {
+              liveOutstanding = await ledgerRepository.getOutstandingAmount(resolvedMerchant.id);
+            }
+            state = state.copyWith(
+              status: VoiceStatus.commandReady,
+              command: command,
+              resolvedMerchant: resolvedMerchant,
+              outstandingPaiseToSettle: liveOutstanding,
+              clearCandidates: true,
+              clearError: true,
+              clearPendingInterpretation: true,
+            );
+            return;
+
+          case SemanticVoiceAmbiguous():
+            return;
+
+          case SemanticVoiceResolutionFailure(:final reason):
+            state = state.copyWith(
+              status: VoiceStatus.error,
+              errorMessage: reason,
+              clearCandidates: true,
+              clearPendingInterpretation: true,
+            );
+            return;
+        }
+      } catch (e) {
+        state = state.copyWith(
+          status: VoiceStatus.error,
+          errorMessage: 'Failed to resolve selected merchant: ${e.toString()}',
+          clearCandidates: true,
+          clearPendingInterpretation: true,
+        );
+        return;
+      }
+    }
+
+    // Path B: Resolving deterministic M5 parser command
+    if (state.command == null) {
       return;
     }
 
@@ -300,6 +442,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       outstandingPaiseToSettle: liveOutstanding,
       clearCandidates: true,
       clearError: true,
+      clearPendingInterpretation: true,
     );
   }
 
@@ -337,6 +480,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
+      clearPendingInterpretation: true,
     );
   }
 

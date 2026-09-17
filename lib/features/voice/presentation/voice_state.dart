@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../../expense/domain/expense_category.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/domain/merchant_category.dart';
+import '../domain/semantic_voice_interpretation.dart';
 import '../domain/voice_command.dart';
 import '../domain/voice_transcript.dart';
 
@@ -32,6 +33,7 @@ class VoiceState {
   final ExpenseCategory? pendingExpenseCategory;
   final String? pendingUpiVpa;
   final String? pendingPaymentReference;
+  final SemanticVoiceInterpretation? pendingInterpretation;
 
   const VoiceState({
     this.status = VoiceStatus.idle,
@@ -47,6 +49,7 @@ class VoiceState {
     this.pendingExpenseCategory,
     this.pendingUpiVpa,
     this.pendingPaymentReference,
+    this.pendingInterpretation,
   });
 
   bool get isListening => status == VoiceStatus.listening;
@@ -70,6 +73,7 @@ class VoiceState {
     ExpenseCategory? pendingExpenseCategory,
     String? pendingUpiVpa,
     String? pendingPaymentReference,
+    SemanticVoiceInterpretation? pendingInterpretation,
     bool clearTranscript = false,
     bool clearCommand = false,
     bool clearMerchant = false,
@@ -80,6 +84,7 @@ class VoiceState {
     bool clearPendingExpenseCategory = false,
     bool clearPendingVpa = false,
     bool clearPendingPaymentRef = false,
+    bool clearPendingInterpretation = false,
   }) {
     return VoiceState(
       status: status ?? this.status,
@@ -107,6 +112,9 @@ class VoiceState {
       pendingPaymentReference: clearPendingPaymentRef
           ? null
           : (pendingPaymentReference ?? this.pendingPaymentReference),
+      pendingInterpretation: clearPendingInterpretation
+          ? null
+          : (pendingInterpretation ?? this.pendingInterpretation),
     );
   }
 
@@ -127,7 +135,8 @@ class VoiceState {
           pendingCategory == other.pendingCategory &&
           pendingExpenseCategory == other.pendingExpenseCategory &&
           pendingUpiVpa == other.pendingUpiVpa &&
-          pendingPaymentReference == other.pendingPaymentReference;
+          pendingPaymentReference == other.pendingPaymentReference &&
+          pendingInterpretation == other.pendingInterpretation;
 
   @override
   int get hashCode =>
@@ -143,9 +152,10 @@ class VoiceState {
       pendingCategory.hashCode ^
       pendingExpenseCategory.hashCode ^
       pendingUpiVpa.hashCode ^
-      pendingPaymentReference.hashCode;
+      pendingPaymentReference.hashCode ^
+      pendingInterpretation.hashCode;
 
   @override
   String toString() =>
-      'VoiceState(status: $status, transcript: $transcript, command: $command, resolvedMerchant: ${resolvedMerchant?.name}, candidateMerchants: ${candidateMerchants?.map((c) => c.name).toList()}, errorMessage: $errorMessage, selectedLocale: $selectedLocale, isExecuting: $isExecuting, outstanding: $outstandingPaiseToSettle, pendingCategory: $pendingCategory, pendingExpenseCategory: $pendingExpenseCategory, pendingVpa: $pendingUpiVpa, pendingRef: $pendingPaymentReference)';
+      'VoiceState(status: $status, transcript: $transcript, command: $command, resolvedMerchant: ${resolvedMerchant?.name}, candidateMerchants: ${candidateMerchants?.map((c) => c.name).toList()}, errorMessage: $errorMessage, selectedLocale: $selectedLocale, isExecuting: $isExecuting, outstanding: $outstandingPaiseToSettle, pendingCategory: $pendingCategory, pendingExpenseCategory: $pendingExpenseCategory, pendingVpa: $pendingUpiVpa, pendingRef: $pendingPaymentReference, pendingInterpretation: $pendingInterpretation)';
 }

@@ -1,6 +1,8 @@
 import '../../../core/utils/validators.dart';
 import '../../expense/domain/expense_category.dart';
 import '../../merchant/domain/merchant_category.dart';
+import '../domain/deterministic_category_resolver.dart';
+import '../domain/deterministic_money_parser.dart';
 import '../domain/voice_command.dart';
 import '../domain/voice_command_parser.dart';
 import '../domain/voice_transcript.dart';
@@ -8,7 +10,14 @@ import '../domain/voice_transcript.dart';
 /// Deterministic parser for converting Hinglish, Hindi, and English ledger speech
 /// into structured [VoiceCommand] objects.
 class DeterministicVoiceCommandParser implements VoiceCommandParser {
-  const DeterministicVoiceCommandParser();
+  final DeterministicMoneyParser moneyParser;
+  final DeterministicCategoryResolver categoryResolver;
+
+  const DeterministicVoiceCommandParser({
+    this.moneyParser = const DeterministicMoneyParser(),
+    this.categoryResolver = const DeterministicCategoryResolver(),
+  });
+
 
   @override
   VoiceParseResult parse(VoiceTranscript transcript) {
@@ -170,34 +179,7 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
   }
 
   MerchantCategory? _inferCategory(String text) {
-    final lower = text.toLowerCase();
-
-    // Grocery: sabji, sabzi, sabji wala, vegetable, grocery, kiryana, general store
-    if (lower.contains('sabji') ||
-        lower.contains('sabzi') ||
-        lower.contains('vegetable') ||
-        lower.contains('grocery') ||
-        lower.contains('kiryana') ||
-        lower.contains('general store')) {
-      return MerchantCategory.grocery;
-    }
-
-    // Milk & Dairy: doodh, doodh wala, milk, dairy
-    if (lower.contains('doodh') ||
-        lower.contains('milk') ||
-        lower.contains('dairy')) {
-      return MerchantCategory.milk;
-    }
-
-    // Laundry: dhobi, laundry, dry clean
-    if (lower.contains('dhobi') ||
-        lower.contains('laundry') ||
-        lower.contains('dry clean')) {
-      return MerchantCategory.laundry;
-    }
-
-    // Business identifiers (shop, store, dukaan, merchant) do NOT infer a category
-    return null;
+    return categoryResolver.resolveMerchantCategory(text);
   }
 
   // ==========================================
@@ -503,79 +485,7 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
   }
 
   ExpenseCategory? _inferExpenseCategory(String text) {
-    final lower = text.toLowerCase();
-
-    // 1. Food
-    if (_containsAnyWord(lower, [
-      'food', 'khana', 'khaana', 'lunch', 'dinner', 'breakfast', 'restaurant',
-      'meal', 'snacks', 'snack', 'tea', 'coffee', 'chai', 'nashta', 'naashta',
-      'roti', 'sabzi', 'sabji', 'mithai', 'burger', 'pizza', 'bakery', 'sweets',
-      'sweet', 'खाने', 'खाना', 'लंच', 'डिनर', 'नाश्ता', 'चाय', 'कॉफी', 'भोजन', 'सब्जी'
-    ])) {
-      return ExpenseCategory.food;
-    }
-
-    // 2. Transport
-    if (_containsAnyWord(lower, [
-      'transport', 'transportation', 'auto', 'cab', 'taxi', 'metro', 'bus',
-      'train', 'petrol', 'fuel', 'diesel', 'uber', 'ola', 'flight', 'rickshaw',
-      'auto rickshaw', 'parking', 'toll', 'yatra', 'यात्रा', 'ऑटो', 'कैब',
-      'टैक्सी', 'मेट्रो', 'बस', 'ट्रेन', 'पेट्रोल', 'डीजल', 'किराया'
-    ])) {
-      return ExpenseCategory.transport;
-    }
-
-    // 3. Shopping
-    if (_containsAnyWord(lower, [
-      'shopping', 'clothes', 'clothing', 'groceries', 'grocery', 'shirt',
-      'shoes', 'shoe', 'pants', 'pant', 'dress', 'supermarket', 'mall', 'bag',
-      'jeans', 'tshirt', 't-shirt', 'samaan', 'saman', 'kapde', 'kapda',
-      'kharidari', 'kharidaari', 'kapdo', 'कपड़े', 'सामान', 'खरीदारी', 'कपड़ा', 'शॉपिंग'
-    ])) {
-      return ExpenseCategory.shopping;
-    }
-
-    // 4. Bills
-    if (_containsAnyWord(lower, [
-      'bills', 'bill', 'electricity', 'recharge', 'mobile bill', 'internet',
-      'rent', 'wifi', 'dth', 'water bill', 'gas bill', 'utility', 'bijli',
-      'bijli bill', 'kiraya', 'makaan kiraya', 'bijlee', 'बिजली', 'बिल',
-      'रिचार्ज', 'किराया', 'इंटरनेट'
-    ])) {
-      return ExpenseCategory.bills;
-    }
-
-    // 5. Entertainment
-    if (_containsAnyWord(lower, [
-      'entertainment', 'movie', 'movies', 'cinema', 'gaming', 'game',
-      'movie ticket', 'netflix', 'theatre', 'concert', 'match', 'hotstar',
-      'prime', 'film', 'picture', 'cinema hall', 'सिनेमा', 'मूवी', 'गेमिंग',
-      'मनोरंजन', 'फिल्म'
-    ])) {
-      return ExpenseCategory.entertainment;
-    }
-
-    // 6. Health
-    if (_containsAnyWord(lower, [
-      'health', 'medicine', 'medicines', 'doctor', 'hospital', 'pharmacy',
-      'clinic', 'tablet', 'tablets', 'injection', 'medical', 'treatment',
-      'checkup', 'dawai', 'dawa', 'dawaeen', 'dawaiyan', 'ilaaj', 'aspataal',
-      'दवाई', 'दवा', 'डॉक्टर', 'अस्पताल', 'इलाज', 'मेडिकल', 'स्वास्थ्य'
-    ])) {
-      return ExpenseCategory.health;
-    }
-
-    // 7. Education
-    if (_containsAnyWord(lower, [
-      'education', 'course', 'books', 'book', 'fees', 'fee', 'tuition',
-      'school', 'college', 'coaching', 'class', 'classes', 'stationery',
-      'exam fee', 'padhai', 'kitab', 'kitabein', 'kitabo', 'shiksha',
-      'पढ़ाई', 'किताब', 'किताबें', 'फीस', 'ट्यूशन', 'शिक्षा', 'स्कूल', 'कॉलेज'
-    ])) {
-      return ExpenseCategory.education;
-    }
-
-    return null;
+    return categoryResolver.resolveExpenseCategory(text);
   }
 
   String? _extractExpenseNote(String text, ExpenseCategory? category) {
@@ -591,7 +501,7 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
     );
 
     // Remove multi-word numbers
-    for (final word in _spokenWordMap.keys) {
+    for (final word in moneyParser.spokenWordMap.keys) {
       working = working.replaceAll(
         RegExp(r'\b' + RegExp.escape(word) + r'\b', caseSensitive: false),
         ' ',
@@ -641,18 +551,6 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
     }
 
     return working.isNotEmpty ? working.toLowerCase() : null;
-  }
-
-  bool _containsAnyWord(String text, List<String> patterns) {
-    for (final pattern in patterns) {
-      if (RegExp(r'[\u0900-\u097F]').hasMatch(pattern)) {
-        if (text.contains(pattern)) return true;
-      } else {
-        final regex = RegExp(r'\b' + RegExp.escape(pattern) + r'\b', caseSensitive: false);
-        if (regex.hasMatch(text)) return true;
-      }
-    }
-    return false;
   }
 
   // ==========================================
@@ -859,180 +757,12 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
   // MONEY / AMOUNT PARSING
   // ==========================================
 
-  static const _spokenWordMap = <String, int>{
-    'zero': 0,
-    'ek': 100,
-    'one': 100,
-    'two': 200,
-    'teen': 300,
-    'three': 300,
-    'chaar': 400,
-    'char': 400,
-    'four': 400,
-    'paanch': 500,
-    'panch': 500,
-    'five': 500,
-    'chhe': 600,
-    'che': 600,
-    'six': 600,
-    'saat': 700,
-    'sat': 700,
-    'seven': 700,
-    'aath': 800,
-    'ath': 800,
-    'eight': 800,
-    'nau': 900,
-    'nine': 900,
-    'das': 1000,
-    'dus': 1000,
-    'ten': 1000,
-    'bees': 2000,
-    'twenty': 2000,
-    'tees': 3000,
-    'thirty': 3000,
-    'chaalis': 4000,
-    'chalis': 4000,
-    'forty': 4000,
-    'pachaas': 5000,
-    'pachas': 5000,
-    'fifty': 5000,
-    'saath': 6000,
-    'sath': 6000,
-    'sixty': 6000,
-    'sattar': 7000,
-    'seventy': 7000,
-    'assi': 8000,
-    'eighty': 8000,
-    'nabbe': 9000,
-    'ninety': 9000,
-    'sau': 10000,
-    'hundred': 10000,
-    'ek sau': 10000,
-    'one hundred': 10000,
-    'one hundred twenty': 12000,
-    'one hundred and twenty': 12000,
-    'dedh sau': 15000,
-    'do sau': 20000,
-    'two hundred': 20000,
-    'two hundred fifty': 25000,
-    'two hundred and fifty': 25000,
-    'dhai sau': 25000,
-    'teen sau': 30000,
-    'three hundred': 30000,
-    'chaar sau': 40000,
-    'four hundred': 40000,
-    'four hundred eighty': 48000,
-    'four hundred and eighty': 48000,
-    'paanch sau': 50000,
-    'five hundred': 50000,
-    'hazaar': 100000,
-    'hazar': 100000,
-    'thousand': 100000,
-    'ek hazaar': 100000,
-    'one thousand': 100000,
-    'twelve hundred': 120000,
-    'one thousand two hundred': 120000,
-    'do hazaar': 200000,
-    'two thousand': 200000,
-    'दो सौ पचास': 25000,
-    'पाँच सौ': 50000,
-    'पांच सौ': 50000,
-    'एक सौ बीस': 12000,
-    'बारह सौ': 120000,
-    'चार सौ अस्सी': 48000,
-    'एक सौ': 10000,
-    'दो सौ': 20000,
-    'तीन सौ': 30000,
-    'चार सौ': 40000,
-    'पचास': 5000,
-    'अस्सी': 8000,
-    'सौ': 10000,
-    'हजार': 100000,
-    'हज़ार': 100000,
-  };
-
   int? _parseAmountToPaise(String input) {
-    var text = input.trim().toLowerCase();
-    text = text
-        .replaceAll(
-          RegExp(
-            r'\b(?:rs|inr|rupaye|rupees|rp|रुपये|रुपया|रुपए)\b|[₹\$\/\-\(\)]',
-            caseSensitive: false,
-          ),
-          ' ',
-        )
-        .trim();
-    text = text.replaceAll(RegExp(r'\s+'), ' ');
-
-    // Check word numbers
-    final wordPaise = _parseWordNumberToPaise(text);
-    if (wordPaise != null) return wordPaise;
-
-    // Remove commas (e.g. "1,000" -> "1000")
-    text = text.replaceAll(',', '');
-
-    // Numeric parsing
-    final numValue = double.tryParse(text);
-    if (numValue == null || numValue.isNaN || numValue.isInfinite) {
-      return null;
-    }
-
-    // Convert to integer paise deterministically without double float drift
-    final parts = text.split('.');
-    if (parts.length == 1) {
-      final rupees = int.tryParse(parts[0]);
-      return rupees != null ? rupees * 100 : null;
-    } else if (parts.length == 2) {
-      final rupees = int.tryParse(parts[0]) ?? 0;
-      var paiseStr = parts[1];
-      if (paiseStr.length == 1) paiseStr += '0';
-      if (paiseStr.length > 2) paiseStr = paiseStr.substring(0, 2);
-      final paise = int.tryParse(paiseStr) ?? 0;
-      return (rupees * 100) + paise;
-    }
-
-    return (numValue * 100).round();
-  }
-
-  int? _parseWordNumberToPaise(String text) {
-    final words = text.toLowerCase().trim();
-    return _spokenWordMap[words];
+    return moneyParser.parseAmountToPaise(input);
   }
 
   int? _extractFirstAmount(String text) {
-    // 1. Try finding explicit numeric pattern like ₹250, 250.50, 250, 1,200
-    final numericRegex = RegExp(
-      r'[₹\$]?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:rupaye|rupees|rs|रुपये|रुपया|रुपए)?',
-      caseSensitive: false,
-    );
-    final match = numericRegex.firstMatch(text);
-    if (match != null) {
-      final val = _parseAmountToPaise(match.group(1)!);
-      if (val != null && val > 0) return val;
-    }
-
-    // 2. Check for multi-word phrases from _spokenWordMap (longest match first)
-    final lower = text.toLowerCase();
-    final sortedEntries = _spokenWordMap.entries.toList()
-      ..sort((a, b) => b.key.length.compareTo(a.key.length));
-    for (final entry in sortedEntries) {
-      final key = entry.key;
-      if (RegExp(r'[\u0900-\u097F]').hasMatch(key)) {
-        if (lower.contains(key)) return entry.value;
-      } else {
-        if (RegExp(r'\b' + RegExp.escape(key) + r'\b', caseSensitive: false).hasMatch(lower)) {
-          return entry.value;
-        }
-      }
-    }
-
-    // 3. Fallback token-by-token
-    final tokens = text.split(' ');
-    for (final token in tokens) {
-      final paise = _parseAmountToPaise(token);
-      if (paise != null && paise > 0) return paise;
-    }
-    return null;
+    return moneyParser.extractFirstAmount(text);
   }
 
   // ==========================================
@@ -1040,12 +770,7 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
   // ==========================================
 
   String _convertDevanagariDigits(String input) {
-    const devanagariDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
-    var result = input;
-    for (var i = 0; i < 10; i++) {
-      result = result.replaceAll(devanagariDigits[i], '$i');
-    }
-    return result;
+    return moneyParser.convertDevanagariDigits(input);
   }
 
   String _normalizeText(String input) {
