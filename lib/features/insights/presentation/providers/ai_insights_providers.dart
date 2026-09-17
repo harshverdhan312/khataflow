@@ -13,6 +13,10 @@ import '../controllers/ai_insight_cache.dart';
 import '../controllers/ai_insight_controller.dart';
 import '../controllers/ai_insight_state.dart';
 
+import '../../domain/models/ai_availability.dart';
+
+export '../../domain/models/ai_availability.dart';
+
 /// Provider for the AI configuration (endpoint, credentials/gateway auth, timeout).
 final aiProviderConfigProvider = Provider<AIProviderConfig>((ref) {
   return AIProviderConfig.disabled();
@@ -22,6 +26,23 @@ final aiProviderConfigProvider = Provider<AIProviderConfig>((ref) {
 final useRealAiProviderProvider = StateProvider<bool>((ref) {
   final config = ref.watch(aiProviderConfigProvider);
   return config.isConfigured;
+});
+
+/// Exposes the operational availability state of optional AI capabilities.
+final aiAvailabilityProvider = Provider<AIAvailability>((ref) {
+  final config = ref.watch(aiProviderConfigProvider);
+  final useReal = ref.watch(useRealAiProviderProvider);
+
+  if (!useReal) {
+    // In local development/test mode with mock provider, AI is available deterministically
+    return const AIAvailability.available();
+  }
+
+  if (!config.isConfigured) {
+    return const AIAvailability.unconfigured();
+  }
+
+  return const AIAvailability.available();
 });
 
 /// Pure domain context builder service.
