@@ -21,6 +21,18 @@ void main() {
       expect(validator.isValid(insight), isTrue);
     });
 
+    test('exact boundary lengths (120 chars title, 1000 chars explanation/recommendation) pass validation', () {
+      final boundaryInsight = AIInsight(
+        title: 'T' * 120,
+        explanation: 'E' * 1000,
+        recommendation: 'R' * 1000,
+        generatedAt: now,
+      );
+
+      expect(() => validator.validate(boundaryInsight), returnsNormally);
+      expect(validator.isValid(boundaryInsight), isTrue);
+    });
+
     test('empty or whitespace title throws AIValidationException', () {
       final emptyTitle = AIInsight(
         title: '',
@@ -49,7 +61,7 @@ void main() {
       expect(validator.isValid(whitespaceTitle), isFalse);
     });
 
-    test('excessively long title throws AIValidationException', () {
+    test('excessively long title (121 chars) throws AIValidationException', () {
       final longTitle = AIInsight(
         title: 'A' * (AIResponseValidator.maxTitleLength + 1),
         explanation: 'Valid explanation',
@@ -79,7 +91,7 @@ void main() {
       expect(validator.isValid(emptyExplanation), isFalse);
     });
 
-    test('excessively long explanation throws AIValidationException', () {
+    test('excessively long explanation (1001 chars) throws AIValidationException', () {
       final longExplanation = AIInsight(
         title: 'Valid title',
         explanation: 'E' * (AIResponseValidator.maxExplanationLength + 1),
@@ -109,7 +121,7 @@ void main() {
       expect(validator.isValid(emptyRecommendation), isFalse);
     });
 
-    test('excessively long recommendation throws AIValidationException', () {
+    test('excessively long recommendation (1001 chars) throws AIValidationException', () {
       final longRecommendation = AIInsight(
         title: 'Valid title',
         explanation: 'Valid explanation',

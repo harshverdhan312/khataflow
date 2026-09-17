@@ -1,8 +1,8 @@
-import '../../../expense/domain/expense.dart';
 import '../../../expense/domain/expense_category.dart';
 import '../../../expense/domain/models/category_spending.dart';
 import '../../../expense/domain/models/spending_insights.dart';
 import '../../../expense/domain/models/spending_trends.dart';
+import 'bounded_expense_summary.dart';
 
 /// Immutable bounded financial summary context provided to the AI layer.
 ///
@@ -17,8 +17,8 @@ class AIContext {
   final int previousMonthExpenseCount;
   final List<CategorySpending> categoryTotals;
   final ExpenseCategory? topCategory;
-  final Expense? largestExpense;
-  final List<Expense> recentExpenses;
+  final BoundedExpenseSummary? largestExpense;
+  final List<BoundedExpenseSummary> recentExpenses;
   final SpendingInsights ruleBasedInsights;
   final SpendingTrends spendingTrends;
 

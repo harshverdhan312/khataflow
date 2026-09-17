@@ -9,6 +9,7 @@ import 'package:khata_flow/features/expense/domain/models/spending_insight.dart'
 import 'package:khata_flow/features/expense/domain/models/spending_insights.dart';
 import 'package:khata_flow/features/expense/domain/models/spending_trend_point.dart';
 import 'package:khata_flow/features/expense/domain/models/spending_trends.dart';
+import 'package:khata_flow/features/insights/domain/models/bounded_expense_summary.dart';
 import 'package:khata_flow/features/insights/domain/services/ai_context_builder.dart';
 import 'package:khata_flow/shared/models/sync_enums.dart';
 
@@ -23,7 +24,7 @@ void main() {
     final prevEnd = DateTime(2026, 9, 1);
 
     final largestExp = Expense(
-      id: 'e1',
+      id: 'db_secret_id_12345',
       amountPaise: 450000,
       category: ExpenseCategory.food,
       note: 'Grocery bulk',
@@ -94,7 +95,7 @@ void main() {
       ],
     );
 
-    test('buildContext accurately transfers all trusted metrics to AIContext', () {
+    test('buildContext accurately transfers all trusted metrics to AIContext as BoundedExpenseSummary', () {
       final context = builder.buildContext(
         analytics: analytics,
         trends: trends,
@@ -109,12 +110,78 @@ void main() {
       expect(context.previousMonthExpenseCount, 9);
       expect(context.categoryTotals.length, 2);
       expect(context.topCategory, ExpenseCategory.food);
-      expect(context.largestExpense, largestExp);
+      expect(context.largestExpense, isA<BoundedExpenseSummary>());
+      expect(context.largestExpense!.amountPaise, equals(450000));
+      expect(context.largestExpense!.category, equals(ExpenseCategory.food));
+      expect(context.largestExpense!.note, equals('Grocery bulk'));
       expect(context.recentExpenses.length, 1);
       expect(context.ruleBasedInsights, insights);
       expect(context.spendingTrends, trends);
       expect(context.hasExpenses, isTrue);
       expect(context.hasPreviousMonthExpenses, isTrue);
+    });
+
+    test('buildContext strips all raw database IDs and metadata from AIContext', () {
+      final context = builder.buildContext(
+        analytics: analytics,
+        trends: trends,
+        insights: insights,
+      );
+
+      // AIContext largestExpense is BoundedExpenseSummary
+      final summary = context.largestExpense!;
+      expect(summary.amountPaise, 450000);
+      expect(summary.category, ExpenseCategory.food);
+      expect(summary.note, 'Grocery bulk');
+      expect(summary.date, DateTime(2026, 9, 5));
+
+      // Check toString representation does NOT have db ID or syncStatus
+      final repr = context.toString();
+      expect(repr.contains('db_secret_id_12345'), isFalse);
+      expect(repr.contains('syncStatus'), isFalse);
+      expect(repr.contains('createdAt'), isFalse);
+      expect(repr.contains('updatedAt'), isFalse);
+    });
+
+    test('buildContext truncates oversized user notes at max 200 characters', () {
+      final oversizedNote = 'A' * 350;
+      final expenseWithOversizedNote = Expense(
+        id: 'e_long',
+        amountPaise: 100000,
+        category: ExpenseCategory.bills,
+        note: oversizedNote,
+        expenseDate: DateTime(2026, 9, 8),
+        createdAt: now,
+        updatedAt: now,
+        syncStatus: SyncStatus.synced,
+      );
+
+      final analyticsWithLongNote = SpendingAnalytics(
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        previousPeriodStart: prevStart,
+        previousPeriodEnd: prevEnd,
+        currentMonthTotalPaise: 100000,
+        previousMonthTotalPaise: 0,
+        monthOverMonthChangePaise: 100000,
+        currentMonthExpenseCount: 1,
+        previousMonthExpenseCount: 0,
+        categoryTotals: const [
+          CategorySpending(category: ExpenseCategory.bills, totalAmountPaise: 100000),
+        ],
+        largestExpense: expenseWithOversizedNote,
+        recentExpenses: [expenseWithOversizedNote],
+      );
+
+      final context = builder.buildContext(
+        analytics: analyticsWithLongNote,
+        trends: trends,
+        insights: insights,
+      );
+
+      expect(context.largestExpense!.note!.length, equals(200));
+      expect(context.largestExpense!.note, equals('A' * 200));
+      expect(context.recentExpenses.first.note!.length, equals(200));
     });
 
     test('buildContext preserves exact integer paise and timestamps without rounding', () {

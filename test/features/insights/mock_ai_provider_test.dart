@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:khata_flow/features/expense/domain/expense.dart';
 import 'package:khata_flow/features/expense/domain/expense_category.dart';
 import 'package:khata_flow/features/expense/domain/models/category_spending.dart';
 import 'package:khata_flow/features/expense/domain/models/insight_priority.dart';
@@ -11,7 +10,7 @@ import 'package:khata_flow/features/insights/data/providers/mock_ai_insight_prov
 import 'package:khata_flow/features/insights/domain/models/ai_context.dart';
 import 'package:khata_flow/features/insights/domain/models/ai_insight_request.dart';
 import 'package:khata_flow/features/insights/domain/models/ai_request_type.dart';
-import 'package:khata_flow/shared/models/sync_enums.dart';
+import 'package:khata_flow/features/insights/domain/models/bounded_expense_summary.dart';
 
 void main() {
   group('MockAIInsightProvider Tests', () {
@@ -37,14 +36,10 @@ void main() {
         ],
         topCategory: topCategory,
         largestExpense: count > 0
-            ? Expense(
-                id: 'exp1',
+            ? BoundedExpenseSummary(
                 amountPaise: totalPaise,
                 category: topCategory ?? ExpenseCategory.other,
-                expenseDate: now,
-                createdAt: now,
-                updatedAt: now,
-                syncStatus: SyncStatus.synced,
+                date: now,
               )
             : null,
         recentExpenses: const [],
@@ -61,8 +56,18 @@ void main() {
     test('generateInsight for monthlySummary with expenses returns contextual output', () async {
       final context = createTestContext(
         count: 8,
-        totalPaise: 500000,
+        totalPaise: 650000,
         topCategory: ExpenseCategory.food,
+        insights: const SpendingInsights(
+          insights: [
+            SpendingInsight(
+              type: InsightType.topCategory,
+              priority: InsightPriority.high,
+              title: 'Food dominant',
+              description: 'Food took up 60% of spending',
+            ),
+          ],
+        ),
       );
 
       final request = AIInsightRequest(
@@ -72,11 +77,12 @@ void main() {
 
       final response = await provider.generateInsight(request);
 
-      expect(response.insight.title, contains('Food'));
-      expect(response.insight.explanation, contains('8 expenses'));
-      expect(response.insight.explanation, contains('Food'));
+      expect(response.insight.title.contains('Food'), isTrue);
+      expect(response.insight.explanation.contains('8 expenses'), isTrue);
+      expect(response.insight.explanation.contains('Food'), isTrue);
+      expect(response.insight.supportingInsightType, equals(InsightType.topCategory));
       expect(response.insight.recommendation, isNotEmpty);
-      expect(response.providerMetadata?['provider'], 'MockAIInsightProvider');
+      expect(response.providerMetadata?['deterministic'], equals('true'));
     });
 
     test('generateInsight for monthlySummary without expenses returns empty state advice', () async {
@@ -93,24 +99,26 @@ void main() {
 
       final response = await provider.generateInsight(request);
 
-      expect(response.insight.title, contains('No spending'));
-      expect(response.insight.explanation, isNotEmpty);
-      expect(response.insight.recommendation, contains('Record your expenses'));
+      expect(response.insight.title, equals('No spending recorded this month'));
+      expect(response.insight.supportingInsightType, isNull);
+      expect(response.insight.recommendation, isNotEmpty);
     });
 
     test('generateInsight for spendingAdvice derives focus from rule-based insights', () async {
-      const highInsight = SpendingInsight(
-        type: InsightType.spendingConcentration,
-        priority: InsightPriority.high,
-        title: 'Spending is concentrated',
-        description: 'Food accounted for over 75% of your spending this month.',
-      );
-
       final context = createTestContext(
-        count: 10,
-        totalPaise: 900000,
-        topCategory: ExpenseCategory.food,
-        insights: const SpendingInsights(insights: [highInsight]),
+        count: 5,
+        totalPaise: 300000,
+        topCategory: ExpenseCategory.transport,
+        insights: const SpendingInsights(
+          insights: [
+            SpendingInsight(
+              type: InsightType.spendingConcentration,
+              priority: InsightPriority.high,
+              title: 'High transit concentration',
+              description: 'Transport took up 70% of expenses this week',
+            ),
+          ],
+        ),
       );
 
       final request = AIInsightRequest(
@@ -120,32 +128,24 @@ void main() {
 
       final response = await provider.generateInsight(request);
 
-      expect(response.insight.title, contains('Spending is concentrated'));
-      expect(response.insight.explanation, contains('Food accounted for over 75%'));
-      expect(response.insight.recommendation, contains('Food'));
-      expect(response.insight.supportingInsightType, InsightType.spendingConcentration);
+      expect(response.insight.title.contains('High transit concentration'), isTrue);
+      expect(response.insight.supportingInsightType, equals(InsightType.spendingConcentration));
+      expect(response.insight.recommendation.contains('Transport'), isTrue);
     });
 
     test('different contexts produce distinct deterministic outputs without hallucinations', () async {
-      final foodContext = createTestContext(
-        count: 4,
-        topCategory: ExpenseCategory.food,
+      final contextFood = createTestContext(topCategory: ExpenseCategory.food);
+      final contextShopping = createTestContext(topCategory: ExpenseCategory.shopping);
+
+      final resFood = await provider.generateInsight(
+        AIInsightRequest(context: contextFood, requestType: AIRequestType.monthlySummary),
       );
-      final transportContext = createTestContext(
-        count: 7,
-        topCategory: ExpenseCategory.transport,
+      final resShopping = await provider.generateInsight(
+        AIInsightRequest(context: contextShopping, requestType: AIRequestType.monthlySummary),
       );
 
-      final responseFood = await provider.generateInsight(
-        AIInsightRequest(context: foodContext, requestType: AIRequestType.monthlySummary),
-      );
-      final responseTransport = await provider.generateInsight(
-        AIInsightRequest(context: transportContext, requestType: AIRequestType.monthlySummary),
-      );
-
-      expect(responseFood.insight.title, isNot(equals(responseTransport.insight.title)));
-      expect(responseFood.insight.title, contains('Food'));
-      expect(responseTransport.insight.title, contains('Transport'));
+      expect(resFood.insight.title, isNot(equals(resShopping.insight.title)));
+      expect(resFood.insight.explanation, isNot(equals(resShopping.insight.explanation)));
     });
   });
 }

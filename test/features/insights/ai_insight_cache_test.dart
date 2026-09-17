@@ -149,6 +149,82 @@ void main() {
       expect(cache.get(request2), isNull);
     });
 
+    test('changed user note in expense produces cache miss', () {
+      final expensesWithNoteA = [
+        Expense(
+          id: 'exp_1',
+          amountPaise: 250000,
+          category: ExpenseCategory.food,
+          note: 'Original Note',
+          expenseDate: DateTime(2026, 9, 5),
+          createdAt: now,
+          updatedAt: now,
+          syncStatus: SyncStatus.synced,
+        ),
+      ];
+
+      final expensesWithNoteB = [
+        Expense(
+          id: 'exp_1',
+          amountPaise: 250000,
+          category: ExpenseCategory.food,
+          note: 'Updated Note',
+          expenseDate: DateTime(2026, 9, 5),
+          createdAt: now,
+          updatedAt: now,
+          syncStatus: SyncStatus.synced,
+        ),
+      ];
+
+      final analyticsA = deriveSpendingAnalytics(expensesWithNoteA, now: now);
+      final trendsA = deriveSpendingTrends(expensesWithNoteA);
+      final insightsA = deriveSpendingInsights(
+        analytics: analyticsA,
+        trends: trendsA,
+        expenses: expensesWithNoteA,
+      );
+      final contextA = contextBuilder.buildContext(
+        analytics: analyticsA,
+        trends: trendsA,
+        insights: insightsA,
+      );
+
+      final analyticsB = deriveSpendingAnalytics(expensesWithNoteB, now: now);
+      final trendsB = deriveSpendingTrends(expensesWithNoteB);
+      final insightsB = deriveSpendingInsights(
+        analytics: analyticsB,
+        trends: trendsB,
+        expenses: expensesWithNoteB,
+      );
+      final contextB = contextBuilder.buildContext(
+        analytics: analyticsB,
+        trends: trendsB,
+        insights: insightsB,
+      );
+
+      final requestA = AIInsightRequest(
+        context: contextA,
+        requestType: AIRequestType.monthlySummary,
+      );
+      final requestB = AIInsightRequest(
+        context: contextB,
+        requestType: AIRequestType.monthlySummary,
+      );
+
+      cache.put(
+        requestA,
+        AIInsight(
+          title: 'Title',
+          explanation: 'Exp',
+          recommendation: 'Rec',
+          generatedAt: now,
+        ),
+      );
+
+      expect(cache.get(requestA), isNotNull);
+      expect(cache.get(requestB), isNull);
+    });
+
     test('different request type produces cache miss', () {
       final analytics = deriveSpendingAnalytics(expensesSet1, now: now);
       final trends = deriveSpendingTrends(expensesSet1);

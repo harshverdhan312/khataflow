@@ -2,6 +2,7 @@ import '../../../expense/domain/models/spending_analytics.dart';
 import '../../../expense/domain/models/spending_insights.dart';
 import '../../../expense/domain/models/spending_trends.dart';
 import '../models/ai_context.dart';
+import '../models/bounded_expense_summary.dart';
 
 /// Pure domain service that transforms deterministic financial analysis into a bounded [AIContext].
 ///
@@ -24,8 +25,12 @@ class AIContextBuilder {
       previousMonthExpenseCount: analytics.previousMonthExpenseCount,
       categoryTotals: analytics.categoryTotals,
       topCategory: analytics.topCategory,
-      largestExpense: analytics.largestExpense,
-      recentExpenses: analytics.recentExpenses,
+      largestExpense: analytics.largestExpense != null
+          ? BoundedExpenseSummary.fromExpense(analytics.largestExpense!)
+          : null,
+      recentExpenses: analytics.recentExpenses
+          .map((e) => BoundedExpenseSummary.fromExpense(e))
+          .toList(),
       ruleBasedInsights: insights,
       spendingTrends: trends,
     );

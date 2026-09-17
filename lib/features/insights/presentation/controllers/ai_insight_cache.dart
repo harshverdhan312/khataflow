@@ -6,7 +6,7 @@ import '../../domain/models/ai_insight_request.dart';
 ///
 /// Prevents redundant AI API calls when deterministic financial context remains unchanged.
 /// Uses a deterministic string fingerprint constructed exclusively from integer amounts,
-/// timestamps, counts, and category identifiers (zero floating-point math).
+/// timestamps, counts, categories, bounded notes, and rule-based insights (zero floating-point math).
 class AIInsightCache {
   final Map<String, AIInsight> _cache = {};
 
@@ -51,7 +51,7 @@ class AIInsightCache {
     buffer.write('currCount:${ctx.currentMonthExpenseCount};');
     buffer.write('prevCount:${ctx.previousMonthExpenseCount};');
 
-    // 3. Category totals
+    // 3. Category totals (alphabetically sorted)
     final sortedCategories = [...ctx.categoryTotals]
       ..sort((a, b) => a.category.name.compareTo(b.category.name));
     buffer.write('catTotals:[');
@@ -63,22 +63,37 @@ class AIInsightCache {
     // 4. Top category and largest expense
     buffer.write('topCat:${ctx.topCategory?.name ?? "none"};');
     if (ctx.largestExpense != null) {
+      final exp = ctx.largestExpense!;
       buffer.write(
-          'largest:${ctx.largestExpense!.amountPaise}:${ctx.largestExpense!.category.name};');
+          'largest:${exp.amountPaise}:${exp.category.name}:${exp.date.millisecondsSinceEpoch}:${exp.note ?? "none"};');
     } else {
       buffer.write('largest:none;');
     }
 
-    // 5. Rule-based insights summary
-    buffer.write('ruleInsights:[');
-    for (final insight in ctx.ruleBasedInsights.insights) {
-      buffer.write('${insight.type.name}:${insight.priority.name};');
+    // 5. Recent bounded expenses
+    buffer.write('recent:[');
+    for (final exp in ctx.recentExpenses) {
+      buffer.write(
+          '${exp.amountPaise}:${exp.category.name}:${exp.date.millisecondsSinceEpoch}:${exp.note ?? "none"};');
     }
     buffer.write('];');
 
-    // 6. Spending trends summary
+    // 6. Rule-based insights summary
+    buffer.write('ruleInsights:[');
+    for (final insight in ctx.ruleBasedInsights.insights) {
+      buffer.write(
+          '${insight.type.name}:${insight.priority.name}:${insight.amountPaise ?? 0};');
+    }
+    buffer.write('];');
+
+    // 7. Spending trends summary
     buffer.write('dailyTrendsCount:${ctx.spendingTrends.dailySpending.length};');
+    buffer.write('weeklyTrendsCount:${ctx.spendingTrends.weeklySpending.length};');
     buffer.write('monthlyTrendsCount:${ctx.spendingTrends.monthlySpending.length};');
+    if (ctx.spendingTrends.highestSpendingDay != null) {
+      final hsd = ctx.spendingTrends.highestSpendingDay!;
+      buffer.write('hsd:${hsd.totalAmountPaise}:${hsd.date.millisecondsSinceEpoch};');
+    }
 
     return buffer.toString();
   }
