@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../insights/domain/models/ai_request_type.dart';
+import '../../../insights/presentation/providers/ai_insights_providers.dart';
+import '../../../insights/presentation/widgets/ai_insight_card.dart';
 import '../../domain/models/spending_insight.dart';
 import '../expense_providers.dart';
 import '../providers/spending_insights_provider.dart';
@@ -15,6 +18,7 @@ class SpendingInsightsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final insightsAsync = ref.watch(spendingInsightsProvider);
     final analyticsAsync = ref.watch(spendingAnalyticsProvider);
+    final trendsAsync = ref.watch(spendingTrendsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.surfaceDark,
@@ -82,6 +86,7 @@ class SpendingInsightsScreen extends ConsumerWidget {
           }
 
           final analytics = analyticsAsync.asData?.value;
+          final trends = trendsAsync.asData?.value;
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -100,9 +105,21 @@ class SpendingInsightsScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
               ],
 
+              // Deterministic M7 Insight Cards
               ...spendingInsights.insights.map((insight) {
                 return _buildInsightCard(insight);
               }),
+
+              // Separated M8 AI Insights Section
+              const SizedBox(height: 24),
+              _buildAiSection(
+                context,
+                ref,
+                analytics: analytics,
+                trends: trends,
+                insights: spendingInsights,
+              ),
+
               const SizedBox(height: 40),
             ],
           );
@@ -304,6 +321,258 @@ class SpendingInsightsScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAiSection(
+    BuildContext context,
+    WidgetRef ref, {
+    required SpendingAnalytics? analytics,
+    required SpendingTrends? trends,
+    required SpendingInsights insights,
+  }) {
+    final aiState = ref.watch(aiInsightControllerProvider);
+    final controller = ref.read(aiInsightControllerProvider.notifier);
+
+    final canRequest = analytics != null &&
+        trends != null &&
+        analytics.hasCurrentMonthExpenses &&
+        !aiState.isLoading;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // AI Section Header
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 16,
+                color: AppColors.primaryLight,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'AI Spending Intelligence',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimaryDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Interpretive analysis and personalized guidance based on your trusted data.',
+          style: TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondaryDark,
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Action Buttons Row
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: canRequest
+                    ? () {
+                        controller.requestMonthlySummary(
+                          analytics: analytics,
+                          trends: trends,
+                          insights: insights,
+                        );
+                      }
+                    : null,
+                icon: const Icon(Icons.summarize_rounded, size: 16),
+                label: const Text('Monthly Summary'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.cardDark,
+                  foregroundColor: AppColors.textPrimaryDark,
+                  disabledBackgroundColor:
+                      AppColors.cardDark.withValues(alpha: 0.5),
+                  disabledForegroundColor: AppColors.textSecondaryDark,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: aiState.requestType ==
+                                  AIRequestType.monthlySummary &&
+                              aiState.isSuccess
+                          ? AppColors.primary
+                          : AppColors.borderDark,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: canRequest
+                    ? () {
+                        controller.requestSpendingAdvice(
+                          analytics: analytics,
+                          trends: trends,
+                          insights: insights,
+                        );
+                      }
+                    : null,
+                icon: const Icon(Icons.lightbulb_rounded, size: 16),
+                label: const Text('Spending Advice'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.cardDark,
+                  foregroundColor: AppColors.textPrimaryDark,
+                  disabledBackgroundColor:
+                      AppColors.cardDark.withValues(alpha: 0.5),
+                  disabledForegroundColor: AppColors.textSecondaryDark,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(
+                      color: aiState.requestType ==
+                                  AIRequestType.spendingAdvice &&
+                              aiState.isSuccess
+                          ? AppColors.primary
+                          : AppColors.borderDark,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // Dynamic State Content
+        if (aiState.isLoading) ...[
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding:
+                const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: AppColors.cardDark,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  aiState.requestType == AIRequestType.spendingAdvice
+                      ? 'Analyzing spending advice...'
+                      : 'Generating monthly summary...',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondaryDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else if (aiState.isSuccess && aiState.insight != null) ...[
+          AIInsightCard(insight: aiState.insight!),
+        ] else if (aiState.isError) ...[
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.cardDark,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: AppColors.outstandingRed.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: AppColors.outstandingRed,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    aiState.errorMessage ??
+                        'AI insights are temporarily unavailable.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimaryDark,
+                    ),
+                  ),
+                ),
+                if (analytics != null && trends != null) ...[
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      controller.retry(
+                        analytics: analytics,
+                        trends: trends,
+                        insights: insights,
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryLight,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                    ),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ] else if (aiState.isEmpty) ...[
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.cardDark,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderDark),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: AppColors.pendingAmber,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    aiState.errorMessage ??
+                        'Add some expenses to generate AI spending insights.',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondaryDark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 

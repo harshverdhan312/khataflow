@@ -9,6 +9,10 @@ import '../../domain/repositories/ai_insight_repository.dart';
 import '../../domain/services/ai_context_builder.dart';
 import '../../domain/services/ai_response_validator.dart';
 
+import '../controllers/ai_insight_cache.dart';
+import '../controllers/ai_insight_controller.dart';
+import '../controllers/ai_insight_state.dart';
+
 /// Provider for the AI configuration (endpoint, credentials/gateway auth, timeout).
 final aiProviderConfigProvider = Provider<AIProviderConfig>((ref) {
   return AIProviderConfig.disabled();
@@ -52,3 +56,23 @@ final aiInsightRepositoryProvider = Provider<AIInsightRepository>((ref) {
     validator: validator,
   );
 });
+
+/// Session-scoped in-memory cache for AI insight requests.
+final aiInsightCacheProvider = Provider<AIInsightCache>((ref) {
+  return AIInsightCache();
+});
+
+/// Application/Presentation controller managing AI insight generation state.
+final aiInsightControllerProvider =
+    StateNotifierProvider<AIInsightController, AIInsightState>((ref) {
+  final repository = ref.watch(aiInsightRepositoryProvider);
+  final contextBuilder = ref.watch(aiContextBuilderProvider);
+  final cache = ref.watch(aiInsightCacheProvider);
+
+  return AIInsightController(
+    repository: repository,
+    contextBuilder: contextBuilder,
+    cache: cache,
+  );
+});
+
