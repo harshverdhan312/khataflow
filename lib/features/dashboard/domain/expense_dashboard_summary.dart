@@ -1,26 +1,8 @@
 import '../../expense/domain/expense.dart';
 import '../../expense/domain/expense_category.dart';
+import '../../expense/domain/models/category_spending.dart';
 
-class CategorySpending {
-  final ExpenseCategory category;
-  final int totalAmountPaise;
-
-  const CategorySpending({
-    required this.category,
-    required this.totalAmountPaise,
-  });
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CategorySpending &&
-          runtimeType == other.runtimeType &&
-          category == other.category &&
-          totalAmountPaise == other.totalAmountPaise;
-
-  @override
-  int get hashCode => Object.hash(category, totalAmountPaise);
-}
+export '../../expense/domain/models/category_spending.dart';
 
 class ExpenseDashboardSummary {
   final DateTime periodStart;
