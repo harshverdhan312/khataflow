@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/expense/presentation/add_expense_screen.dart';
 import '../features/expense/presentation/edit_expense_screen.dart';
+import '../features/expense/presentation/screens/spending_insights_screen.dart';
 import '../features/ledger/presentation/ledger_screen.dart';
 import '../features/merchant/presentation/add_merchant_screen.dart';
 import '../features/merchant/presentation/edit_merchant_screen.dart';
@@ -58,6 +59,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final expenseId = state.pathParameters['expenseId'] ?? '';
           return EditExpenseScreen(expenseId: expenseId);
         },
+      ),
+      GoRoute(
+        path: '/expense/insights',
+        name: 'spendingInsights',
+        builder: (context, state) => const SpendingInsightsScreen(),
       ),
     ],
   );

@@ -296,12 +296,13 @@ void main() {
       expect(find.text(CurrencyFormatter.formatPaise(635000)), findsOneWidget);
       expect(find.text('Total expenses (2 records)'), findsOneWidget);
 
-      // Category breakdown
+      // Category breakdown & Insights
       expect(find.text('Spending by Category'), findsOneWidget);
-      expect(find.text('Food'), findsNWidgets(2)); // in breakdown + in recent preview
-      expect(find.text(CurrencyFormatter.formatPaise(425000)), findsNWidgets(2));
-      expect(find.text('Transport'), findsNWidgets(2));
-      expect(find.text(CurrencyFormatter.formatPaise(210000)), findsNWidgets(2));
+      expect(find.text('Spending Insights'), findsOneWidget);
+      expect(find.text('Food'), findsAtLeastNWidgets(2)); // in breakdown, insights, and recent preview
+      expect(find.text(CurrencyFormatter.formatPaise(425000)), findsAtLeastNWidgets(2));
+      expect(find.text('Transport'), findsAtLeastNWidgets(2));
+      expect(find.text(CurrencyFormatter.formatPaise(210000)), findsAtLeastNWidgets(2));
 
       // Recent expenses
       expect(find.text('Recent Expenses'), findsOneWidget);

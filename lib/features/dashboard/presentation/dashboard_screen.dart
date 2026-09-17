@@ -8,6 +8,8 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../expense/domain/expense_category.dart';
 import '../../expense/presentation/expense_detail_sheet.dart';
+import '../../expense/presentation/providers/spending_insights_provider.dart';
+import '../../expense/presentation/utils/spending_insight_presenter.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/presentation/merchant_providers.dart';
 import '../../navigation/presentation/main_nav_screen.dart';
@@ -749,6 +751,18 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(height: 24),
         ],
 
+        // Spending Insights Preview Section
+        Consumer(
+          builder: (context, ref, _) {
+            final insightsAsync = ref.watch(spendingInsightsProvider);
+            return insightsAsync.maybeWhen(
+              data: (spendingInsights) =>
+                  _buildInsightsPreviewSection(context, spendingInsights),
+              orElse: () => const SizedBox.shrink(),
+            );
+          },
+        ),
+
         // Recent Expenses Section
         if (expenseSummary.recentExpenses.isNotEmpty) ...[
           Row(
@@ -858,6 +872,126 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildInsightsPreviewSection(
+    BuildContext context,
+    SpendingInsights insights,
+  ) {
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    final previewInsights = insights.insights.take(2).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Spending Insights',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimaryDark,
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.push('/expense/insights'),
+              child: const Text('View all insights'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...previewInsights.map((insight) {
+          final icon = SpendingInsightPresenter.getIcon(insight.type);
+          final accentColor =
+              SpendingInsightPresenter.getAccentColor(insight.type);
+          final metric = SpendingInsightPresenter.getSupportingMetric(insight);
+
+          return Card(
+            color: AppColors.cardDark,
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: AppColors.borderDark),
+            ),
+            child: InkWell(
+              onTap: () => context.push('/expense/insights'),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 18,
+                        color: accentColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  insight.title,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimaryDark,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (metric != null) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  metric,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: accentColor,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            insight.description,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondaryDark,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+        const SizedBox(height: 16),
       ],
     );
   }
