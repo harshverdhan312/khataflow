@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../expense/domain/expense_category.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/domain/merchant_category.dart';
 import '../domain/voice_command.dart';
@@ -38,6 +40,7 @@ class VoiceConfirmationView extends StatelessWidget {
       RecordSettlementCommand() => _buildSettlementConfirmation(context, command),
       SettleMerchantCommand() => _buildFullSettlementConfirmation(context, command),
       CreateMerchantCommand() => _buildCreateMerchantConfirmation(context, command),
+      AddExpenseCommand() => _buildExpenseConfirmation(context, command),
     };
   }
 
@@ -1048,6 +1051,275 @@ class VoiceConfirmationView extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================
+  // EXPENSE CONFIRMATION (M6.5)
+  // ==========================================
+
+  Widget _buildExpenseConfirmation(
+    BuildContext context,
+    AddExpenseCommand command,
+  ) {
+    final selectedCategory =
+        voiceState.pendingExpenseCategory ?? command.category;
+    final dateStr = DateFormat('d MMM yyyy').format(command.expenseDate);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.receipt_long_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Record Expense',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Personal Expense Confirmation',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Amount Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Amount',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                CurrencyFormatter.formatPaise(command.amountPaise),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Category Section
+        const Text(
+          'Category',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        if (selectedCategory != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.category_rounded, size: 18, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  selectedCategory.displayName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: () {
+                    voiceController.setPendingExpenseCategory(ExpenseCategory.other);
+                  },
+                  child: const Text(
+                    'Change',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ExpenseCategory.values.map((cat) {
+              return ChoiceChip(
+                label: Text(cat.displayName),
+                selected: false,
+                onSelected: (_) {
+                  voiceController.setPendingExpenseCategory(cat);
+                },
+                selectedColor: AppColors.primary,
+                backgroundColor: AppColors.surface,
+                labelStyle: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+              );
+            }).toList(),
+          ),
+        ],
+        const SizedBox(height: 12),
+
+        // Optional Note
+        if (command.note != null && command.note!.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_note_rounded, size: 18, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    command.note!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Date
+        Row(
+          children: [
+            const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.textSecondary),
+            const SizedBox(width: 6),
+            Text(
+              dateStr,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Safety Disclaimer
+        _buildDisclaimer(
+          'Tapping record will save this expense to your personal expense history.',
+        ),
+        const SizedBox(height: 20),
+
+        // Action Buttons
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: voiceState.isExecuting
+                    ? null
+                    : () {
+                        voiceController.cancelCommand();
+                        onDismiss();
+                      },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Cancel'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: (selectedCategory == null || voiceState.isExecuting)
+                    ? null
+                    : () async {
+                        final success =
+                            await voiceController.executeConfirmedCommand();
+                        if (success && context.mounted) {
+                          onDismiss();
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: voiceState.isExecuting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Record Expense',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+              ),
+            ),
+          ],
         ),
       ],
     );

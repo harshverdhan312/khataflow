@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khata_flow/core/services/voice_service.dart';
 import 'package:khata_flow/database/app_database.dart';
+import 'package:khata_flow/features/expense/data/expense_repository_impl.dart';
 import 'package:khata_flow/features/ledger/data/ledger_repository_impl.dart';
 import 'package:khata_flow/features/ledger/domain/purchase.dart';
 import 'package:khata_flow/features/merchant/data/merchant_repository_impl.dart';
@@ -37,6 +38,7 @@ void main() {
     late MerchantRepositoryImpl merchantRepo;
     late LedgerRepositoryImpl ledgerRepo;
     late SettlementRepositoryImpl settlementRepo;
+    late ExpenseRepositoryImpl expenseRepo;
     late VoiceController controller;
     late Merchant testMerchant;
 
@@ -45,6 +47,7 @@ void main() {
       merchantRepo = MerchantRepositoryImpl(db);
       ledgerRepo = LedgerRepositoryImpl(db);
       settlementRepo = SettlementRepositoryImpl(db);
+      expenseRepo = ExpenseRepositoryImpl(db);
 
       // Seed an active merchant in SQLite
       testMerchant = await merchantRepo.createMerchant(
@@ -62,6 +65,7 @@ void main() {
         merchantRepository: merchantRepo,
         ledgerRepository: ledgerRepo,
         settlementRepository: settlementRepo,
+        expenseRepository: expenseRepo,
         merchantResolver: const MerchantResolver(),
       );
     });

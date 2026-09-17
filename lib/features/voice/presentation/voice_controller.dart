@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/voice_service.dart';
 import '../../../core/utils/validators.dart';
+import '../../expense/domain/expense.dart';
+import '../../expense/domain/expense_category.dart';
+import '../../expense/domain/expense_repository.dart';
 import '../../ledger/domain/ledger_repository.dart';
 import '../../ledger/domain/purchase.dart';
 import '../../merchant/domain/merchant.dart';
@@ -23,6 +26,7 @@ class VoiceController extends StateNotifier<VoiceState> {
   final MerchantRepository merchantRepository;
   final LedgerRepository ledgerRepository;
   final SettlementRepository settlementRepository;
+  final ExpenseRepository expenseRepository;
   final MerchantResolver merchantResolver;
 
   VoiceController({
@@ -31,6 +35,7 @@ class VoiceController extends StateNotifier<VoiceState> {
     required this.merchantRepository,
     required this.ledgerRepository,
     required this.settlementRepository,
+    required this.expenseRepository,
     this.merchantResolver = const MerchantResolver(),
   }) : super(const VoiceState());
 
@@ -46,6 +51,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearCandidates: true,
       clearOutstanding: true,
       clearPendingCategory: true,
+      clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
     );
@@ -124,6 +130,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearError: true,
       clearOutstanding: true,
       clearPendingCategory: true,
+      clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
     );
@@ -140,6 +147,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearCandidates: true,
       clearOutstanding: true,
       clearPendingCategory: true,
+      clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
     );
@@ -156,7 +164,20 @@ class VoiceController extends StateNotifier<VoiceState> {
 
     final command = (parseResult as VoiceParseSuccess).command;
 
-    // 2. Merchant Resolution based on command type
+    // 2. AddExpenseCommand requires no merchant resolution
+    if (command is AddExpenseCommand) {
+      state = state.copyWith(
+        status: VoiceStatus.commandReady,
+        command: command,
+        pendingExpenseCategory: command.category,
+        clearMerchant: true,
+        clearCandidates: true,
+        clearError: true,
+      );
+      return;
+    }
+
+    // 3. Merchant Resolution based on command type
     try {
       final activeMerchants = await merchantRepository.getActiveMerchants();
 
@@ -204,6 +225,7 @@ class VoiceController extends StateNotifier<VoiceState> {
         RecordSettlementCommand(:final merchantName) => merchantName,
         SettleMerchantCommand(:final merchantName) => merchantName,
         CreateMerchantCommand() => '',
+        AddExpenseCommand() => '',
       };
 
       final resolution = merchantResolver.resolve(
@@ -286,6 +308,11 @@ class VoiceController extends StateNotifier<VoiceState> {
     state = state.copyWith(pendingCategory: category);
   }
 
+  /// Updates the pending expense category for expense confirmation.
+  void setPendingExpenseCategory(ExpenseCategory category) {
+    state = state.copyWith(pendingExpenseCategory: category);
+  }
+
   /// Updates the pending UPI VPA for merchant creation confirmation.
   void setPendingUpiVpa(String? vpa) {
     state = state.copyWith(pendingUpiVpa: vpa);
@@ -307,6 +334,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearError: true,
       clearOutstanding: true,
       clearPendingCategory: true,
+      clearPendingExpenseCategory: true,
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
     );
@@ -429,6 +457,43 @@ class VoiceController extends StateNotifier<VoiceState> {
             category: state.pendingCategory!,
             upiVpa: vpa,
             phone: null,
+          ),
+        );
+      } else if (command is AddExpenseCommand) {
+        final category = state.pendingExpenseCategory ?? command.category;
+        if (category == null) {
+          state = state.copyWith(
+            isExecuting: false,
+            status: VoiceStatus.error,
+            errorMessage: 'Please select an expense category.',
+          );
+          return false;
+        }
+
+        if (command.amountPaise <= 0) {
+          state = state.copyWith(
+            isExecuting: false,
+            status: VoiceStatus.error,
+            errorMessage: 'Expense amount must be positive.',
+          );
+          return false;
+        }
+
+        if (command.note != null && command.note!.length > 200) {
+          state = state.copyWith(
+            isExecuting: false,
+            status: VoiceStatus.error,
+            errorMessage: 'Expense note cannot exceed 200 characters.',
+          );
+          return false;
+        }
+
+        await expenseRepository.createExpense(
+          CreateExpenseInput(
+            amountPaise: command.amountPaise,
+            category: category,
+            note: command.note,
+            expenseDate: command.expenseDate,
           ),
         );
       }

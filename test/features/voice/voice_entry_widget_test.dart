@@ -5,6 +5,7 @@ import 'package:khata_flow/core/services/voice_service.dart';
 import 'package:khata_flow/features/dashboard/domain/dashboard_summary.dart';
 import 'package:khata_flow/features/dashboard/presentation/dashboard_providers.dart';
 import 'package:khata_flow/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:khata_flow/features/expense/presentation/expense_providers.dart';
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_repository.dart';
@@ -122,6 +123,7 @@ void main() {
               ),
             ),
             inactiveMerchantsStreamProvider.overrideWith((ref) => Stream.value([])),
+            expensesStreamProvider.overrideWith((ref) => Stream.value([])),
           ],
           child: const MaterialApp(
             home: DashboardScreen(),

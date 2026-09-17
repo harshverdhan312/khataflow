@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khata_flow/core/services/voice_service.dart';
+import 'package:khata_flow/features/expense/domain/expense.dart';
+import 'package:khata_flow/features/expense/domain/expense_category.dart';
+import 'package:khata_flow/features/expense/domain/expense_repository.dart';
 import 'package:khata_flow/features/ledger/domain/ledger_repository.dart';
 import 'package:khata_flow/features/ledger/domain/purchase.dart';
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
@@ -15,6 +18,54 @@ import 'package:khata_flow/features/voice/domain/voice_command.dart';
 import 'package:khata_flow/features/voice/domain/voice_transcript.dart';
 import 'package:khata_flow/features/voice/presentation/voice_controller.dart';
 import 'package:khata_flow/features/voice/presentation/voice_state.dart';
+
+class FakeExpenseRepository implements ExpenseRepository {
+  final List<Expense> expenses = [];
+  int createExpenseCallCount = 0;
+  bool shouldThrowOnCreate = false;
+
+  @override
+  Future<Expense> createExpense(CreateExpenseInput input) async {
+    createExpenseCallCount++;
+    if (shouldThrowOnCreate) {
+      throw Exception('Database write failed');
+    }
+    final expense = Expense(
+      id: 'e_${DateTime.now().millisecondsSinceEpoch}_${expenses.length}',
+      amountPaise: input.amountPaise,
+      category: input.category,
+      note: input.note,
+      expenseDate: input.expenseDate,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    expenses.add(expense);
+    return expense;
+  }
+
+  @override
+  Future<void> deleteExpense(String id) async => expenses.removeWhere((e) => e.id == id);
+
+  @override
+  Future<Expense?> getExpenseById(String id) async => expenses.where((e) => e.id == id).firstOrNull;
+
+  @override
+  Future<List<Expense>> getExpenses() async => expenses;
+
+  @override
+  Future<List<Expense>> getExpensesByDateRange({required DateTime startDate, required DateTime endDate}) async =>
+      expenses.where((e) => !e.expenseDate.isBefore(startDate) && e.expenseDate.isBefore(endDate)).toList();
+
+  @override
+  Future<Expense> updateExpense(UpdateExpenseInput input) async => throw UnimplementedError();
+
+  @override
+  Stream<List<Expense>> watchExpenses() => Stream.value(expenses);
+
+  @override
+  Stream<List<Expense>> watchExpensesByDateRange({required DateTime startDate, required DateTime endDate}) =>
+      Stream.value([]);
+}
 
 class FakeVoiceService implements VoiceService {
   bool initializeResult = true;
@@ -236,6 +287,7 @@ void main() {
     late FakeMerchantRepository fakeMerchantRepo;
     late FakeLedgerRepository fakeLedgerRepo;
     late FakeSettlementRepository fakeSettlementRepo;
+    late FakeExpenseRepository fakeExpenseRepo;
     late VoiceController controller;
 
     final sharmaStore = Merchant(
@@ -276,6 +328,7 @@ void main() {
       fakeMerchantRepo = FakeMerchantRepository();
       fakeLedgerRepo = FakeLedgerRepository();
       fakeSettlementRepo = FakeSettlementRepository();
+      fakeExpenseRepo = FakeExpenseRepository();
 
       fakeMerchantRepo.activeMerchants = [sharmaStore, guptaStore];
 
@@ -285,6 +338,7 @@ void main() {
         merchantRepository: fakeMerchantRepo,
         ledgerRepository: fakeLedgerRepo,
         settlementRepository: fakeSettlementRepo,
+        expenseRepository: fakeExpenseRepo,
         merchantResolver: const MerchantResolver(),
       );
     });
@@ -610,6 +664,146 @@ void main() {
         expect(success, isTrue);
         expect(controller.state.status, equals(VoiceStatus.completed));
         expect(fakeMerchantRepo.activeMerchants.any((m) => m.name == 'Rahul Ki Mobile Shop'), isTrue);
+      });
+    });
+
+    group('AddExpenseCommand Execution (M6.5)', () {
+      test('transcript "Food pe 250 kharch kiye" transitions to commandReady directly without merchant resolution', () async {
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Food pe 250 kharch kiye',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+
+        expect(controller.state.status, equals(VoiceStatus.commandReady));
+        expect(controller.state.command, isA<AddExpenseCommand>());
+        final cmd = controller.state.command as AddExpenseCommand;
+        expect(cmd.amountPaise, equals(25000));
+        expect(cmd.category, equals(ExpenseCategory.food));
+        expect(controller.state.pendingExpenseCategory, equals(ExpenseCategory.food));
+        expect(controller.state.resolvedMerchant, isNull);
+        expect(controller.state.candidateMerchants, isNull);
+      });
+
+      test('transcript "Spent 250" has null category and requires user to select category before confirmation', () async {
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Spent 250',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+
+        expect(controller.state.status, equals(VoiceStatus.commandReady));
+        expect(controller.state.pendingExpenseCategory, isNull);
+
+        // Attempting to execute without category fails safely
+        final successWithoutCategory = await controller.executeConfirmedCommand();
+        expect(successWithoutCategory, isFalse);
+        expect(controller.state.status, equals(VoiceStatus.error));
+        expect(controller.state.errorMessage, contains('Please select an expense category'));
+
+        // Reset to command ready and select category
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Spent 250',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+        controller.setPendingExpenseCategory(ExpenseCategory.transport);
+        expect(controller.state.pendingExpenseCategory, equals(ExpenseCategory.transport));
+
+        final success = await controller.executeConfirmedCommand();
+        expect(success, isTrue);
+        expect(controller.state.status, equals(VoiceStatus.completed));
+        expect(fakeExpenseRepo.expenses.length, equals(1));
+        expect(fakeExpenseRepo.expenses.first.amountPaise, equals(25000));
+        expect(fakeExpenseRepo.expenses.first.category, equals(ExpenseCategory.transport));
+      });
+
+      test('cancelCommand clears expense command and does NOT call repository', () async {
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Spent 250 on food',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+
+        expect(controller.state.status, equals(VoiceStatus.commandReady));
+        controller.cancelCommand();
+
+        expect(controller.state.status, equals(VoiceStatus.idle));
+        expect(controller.state.command, isNull);
+        expect(controller.state.pendingExpenseCategory, isNull);
+        expect(fakeExpenseRepo.createExpenseCallCount, equals(0));
+      });
+
+      test('executeConfirmedCommand calls createExpense exactly once with integer paise', () async {
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Bought groceries for 480',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+
+        final success = await controller.executeConfirmedCommand();
+        expect(success, isTrue);
+        expect(fakeExpenseRepo.createExpenseCallCount, equals(1));
+        expect(fakeExpenseRepo.expenses.length, equals(1));
+        expect(fakeExpenseRepo.expenses.first.amountPaise, equals(48000));
+        expect(fakeExpenseRepo.expenses.first.category, equals(ExpenseCategory.shopping));
+        expect(fakeExpenseRepo.expenses.first.note, equals('groceries'));
+      });
+
+      test('duplicate confirmation protection prevents concurrent execution', () async {
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Spent 100 on food',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+
+        // First call initiates execution
+        final future1 = controller.executeConfirmedCommand();
+        // Concurrent second call is rejected immediately
+        final future2 = controller.executeConfirmedCommand();
+
+        final result2 = await future2;
+        expect(result2, isFalse);
+
+        final result1 = await future1;
+        expect(result1, isTrue);
+        expect(fakeExpenseRepo.createExpenseCallCount, equals(1));
+      });
+
+      test('repository error transitions to error state', () async {
+        fakeExpenseRepo.shouldThrowOnCreate = true;
+
+        await controller.processTranscript(
+          VoiceTranscript(
+            text: 'Food pe 250 kharch kiye',
+            locale: 'en_IN',
+            isFinal: true,
+            capturedAt: DateTime.now(),
+          ),
+        );
+
+        final success = await controller.executeConfirmedCommand();
+        expect(success, isFalse);
+        expect(controller.state.status, equals(VoiceStatus.error));
+        expect(controller.state.errorMessage, contains('Database write failed'));
       });
     });
   });

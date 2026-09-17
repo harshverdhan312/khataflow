@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../expense/domain/expense_category.dart';
 import '../../merchant/domain/merchant.dart';
 import '../../merchant/domain/merchant_category.dart';
 import '../domain/voice_command.dart';
@@ -28,6 +29,7 @@ class VoiceState {
   final bool isExecuting;
   final int? outstandingPaiseToSettle;
   final MerchantCategory? pendingCategory;
+  final ExpenseCategory? pendingExpenseCategory;
   final String? pendingUpiVpa;
   final String? pendingPaymentReference;
 
@@ -42,6 +44,7 @@ class VoiceState {
     this.isExecuting = false,
     this.outstandingPaiseToSettle,
     this.pendingCategory,
+    this.pendingExpenseCategory,
     this.pendingUpiVpa,
     this.pendingPaymentReference,
   });
@@ -64,6 +67,7 @@ class VoiceState {
     bool? isExecuting,
     int? outstandingPaiseToSettle,
     MerchantCategory? pendingCategory,
+    ExpenseCategory? pendingExpenseCategory,
     String? pendingUpiVpa,
     String? pendingPaymentReference,
     bool clearTranscript = false,
@@ -73,6 +77,7 @@ class VoiceState {
     bool clearError = false,
     bool clearOutstanding = false,
     bool clearPendingCategory = false,
+    bool clearPendingExpenseCategory = false,
     bool clearPendingVpa = false,
     bool clearPendingPaymentRef = false,
   }) {
@@ -94,6 +99,9 @@ class VoiceState {
       pendingCategory: clearPendingCategory
           ? null
           : (pendingCategory ?? this.pendingCategory),
+      pendingExpenseCategory: clearPendingExpenseCategory
+          ? null
+          : (pendingExpenseCategory ?? this.pendingExpenseCategory),
       pendingUpiVpa:
           clearPendingVpa ? null : (pendingUpiVpa ?? this.pendingUpiVpa),
       pendingPaymentReference: clearPendingPaymentRef
@@ -117,6 +125,7 @@ class VoiceState {
           isExecuting == other.isExecuting &&
           outstandingPaiseToSettle == other.outstandingPaiseToSettle &&
           pendingCategory == other.pendingCategory &&
+          pendingExpenseCategory == other.pendingExpenseCategory &&
           pendingUpiVpa == other.pendingUpiVpa &&
           pendingPaymentReference == other.pendingPaymentReference;
 
@@ -132,10 +141,11 @@ class VoiceState {
       isExecuting.hashCode ^
       outstandingPaiseToSettle.hashCode ^
       pendingCategory.hashCode ^
+      pendingExpenseCategory.hashCode ^
       pendingUpiVpa.hashCode ^
       pendingPaymentReference.hashCode;
 
   @override
   String toString() =>
-      'VoiceState(status: $status, transcript: $transcript, command: $command, resolvedMerchant: ${resolvedMerchant?.name}, candidateMerchants: ${candidateMerchants?.map((c) => c.name).toList()}, errorMessage: $errorMessage, selectedLocale: $selectedLocale, isExecuting: $isExecuting, outstanding: $outstandingPaiseToSettle, pendingCategory: $pendingCategory, pendingVpa: $pendingUpiVpa, pendingRef: $pendingPaymentReference)';
+      'VoiceState(status: $status, transcript: $transcript, command: $command, resolvedMerchant: ${resolvedMerchant?.name}, candidateMerchants: ${candidateMerchants?.map((c) => c.name).toList()}, errorMessage: $errorMessage, selectedLocale: $selectedLocale, isExecuting: $isExecuting, outstanding: $outstandingPaiseToSettle, pendingCategory: $pendingCategory, pendingExpenseCategory: $pendingExpenseCategory, pendingVpa: $pendingUpiVpa, pendingRef: $pendingPaymentReference)';
 }

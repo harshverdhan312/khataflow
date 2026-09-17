@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../expense/domain/expense_category.dart';
 import '../../merchant/domain/merchant_category.dart';
 
 /// Single item within an [AddPurchaseCommand].
@@ -149,3 +150,41 @@ class CreateMerchantCommand extends VoiceCommand {
   String toString() =>
       'CreateMerchantCommand(merchantName: "$merchantName", category: $category, upiVpa: $upiVpa)';
 }
+
+/// Command representing an intention to record a personal expense.
+@immutable
+class AddExpenseCommand extends VoiceCommand {
+  final int amountPaise;
+  final ExpenseCategory? category;
+  final String? note;
+  final DateTime expenseDate;
+
+  const AddExpenseCommand({
+    required this.amountPaise,
+    this.category,
+    this.note,
+    required this.expenseDate,
+  }) : assert(amountPaise > 0, 'Expense amount in paise must be positive');
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AddExpenseCommand &&
+          runtimeType == other.runtimeType &&
+          amountPaise == other.amountPaise &&
+          category == other.category &&
+          note == other.note &&
+          expenseDate == other.expenseDate;
+
+  @override
+  int get hashCode =>
+      amountPaise.hashCode ^
+      category.hashCode ^
+      note.hashCode ^
+      expenseDate.hashCode;
+
+  @override
+  String toString() =>
+      'AddExpenseCommand(amountPaise: $amountPaise, category: $category, note: "$note", expenseDate: $expenseDate)';
+}
+

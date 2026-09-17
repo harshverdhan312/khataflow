@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khata_flow/core/services/voice_service.dart';
+import 'package:khata_flow/features/expense/domain/expense.dart';
+import 'package:khata_flow/features/expense/domain/expense_category.dart';
+import 'package:khata_flow/features/expense/domain/expense_repository.dart';
 import 'package:khata_flow/features/ledger/domain/ledger_repository.dart';
 import 'package:khata_flow/features/ledger/domain/purchase.dart';
 import 'package:khata_flow/features/merchant/domain/merchant.dart';
@@ -16,6 +19,48 @@ import 'package:khata_flow/features/voice/domain/voice_command.dart';
 import 'package:khata_flow/features/voice/presentation/voice_confirmation_view.dart';
 import 'package:khata_flow/features/voice/presentation/voice_controller.dart';
 import 'package:khata_flow/features/voice/presentation/voice_state.dart';
+
+class StubExpenseRepository implements ExpenseRepository {
+  final List<Expense> expenses = [];
+  int createExpenseCalls = 0;
+
+  @override
+  Future<Expense> createExpense(CreateExpenseInput input) async {
+    createExpenseCalls++;
+    final expense = Expense(
+      id: 'e1',
+      amountPaise: input.amountPaise,
+      category: input.category,
+      note: input.note,
+      expenseDate: input.expenseDate,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    expenses.add(expense);
+    return expense;
+  }
+
+  @override
+  Future<void> deleteExpense(String id) async {}
+
+  @override
+  Future<Expense?> getExpenseById(String id) async => null;
+
+  @override
+  Future<List<Expense>> getExpenses() async => expenses;
+
+  @override
+  Future<List<Expense>> getExpensesByDateRange({required DateTime startDate, required DateTime endDate}) async => [];
+
+  @override
+  Future<Expense> updateExpense(UpdateExpenseInput input) async => throw UnimplementedError();
+
+  @override
+  Stream<List<Expense>> watchExpenses() => Stream.value(expenses);
+
+  @override
+  Stream<List<Expense>> watchExpensesByDateRange({required DateTime startDate, required DateTime endDate}) => Stream.value([]);
+}
 
 class StubVoiceService implements VoiceService {
   @override
@@ -146,6 +191,7 @@ void main() {
     late StubMerchantRepository merchantRepo;
     late StubLedgerRepository ledgerRepo;
     late StubSettlementRepository settlementRepo;
+    late StubExpenseRepository expenseRepo;
     late VoiceController controller;
 
     final testMerchant = Merchant(
@@ -174,6 +220,7 @@ void main() {
       merchantRepo = StubMerchantRepository();
       ledgerRepo = StubLedgerRepository();
       settlementRepo = StubSettlementRepository();
+      expenseRepo = StubExpenseRepository();
       merchantRepo.merchants = [testMerchant, secondMerchant];
 
       controller = VoiceController(
@@ -182,6 +229,7 @@ void main() {
         merchantRepository: merchantRepo,
         ledgerRepository: ledgerRepo,
         settlementRepository: settlementRepo,
+        expenseRepository: expenseRepo,
         merchantResolver: const MerchantResolver(),
       );
     });
@@ -388,6 +436,114 @@ void main() {
       expect(find.text('UPI ID / VPA (Optional)'), findsOneWidget);
       expect(find.text('Create Ledger'), findsOneWidget);
       expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('Displays expense confirmation with amount, category, note, and date', (tester) async {
+      final testDate = DateTime(2026, 9, 17);
+      final state = VoiceState(
+        status: VoiceStatus.commandReady,
+        pendingExpenseCategory: ExpenseCategory.food,
+        command: AddExpenseCommand(
+          amountPaise: 25000,
+          category: ExpenseCategory.food,
+          note: 'lunch with friends',
+          expenseDate: testDate,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VoiceConfirmationView(
+              voiceState: state,
+              voiceController: controller,
+              onDismiss: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Record Expense'), findsWidgets);
+      expect(find.text('₹250'), findsOneWidget);
+      expect(find.text('Food'), findsOneWidget);
+      expect(find.text('lunch with friends'), findsOneWidget);
+      expect(find.text('17 Sep 2026'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('Shows category choice chips when expense category is null', (tester) async {
+      final testDate = DateTime(2026, 9, 17);
+      final state = VoiceState(
+        status: VoiceStatus.commandReady,
+        command: AddExpenseCommand(
+          amountPaise: 50000,
+          category: null,
+          note: null,
+          expenseDate: testDate,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VoiceConfirmationView(
+              voiceState: state,
+              voiceController: controller,
+              onDismiss: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Record Expense'), findsWidgets);
+      expect(find.text('₹500'), findsOneWidget);
+      expect(find.text('Food'), findsOneWidget);
+      expect(find.text('Transport'), findsOneWidget);
+      expect(find.text('Shopping'), findsOneWidget);
+      expect(find.text('Bills'), findsOneWidget);
+      expect(find.text('Entertainment'), findsOneWidget);
+      expect(find.text('Health'), findsOneWidget);
+      expect(find.text('Education'), findsOneWidget);
+      expect(find.text('Other'), findsOneWidget);
+
+      // Record Expense button should be disabled when category is null
+      final recordButton = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Record Expense'));
+      expect(recordButton.onPressed, isNull);
+    });
+
+    testWidgets('Cancel button triggers onDismiss and cancelCommand', (tester) async {
+      bool dismissed = false;
+      final testDate = DateTime(2026, 9, 17);
+      final state = VoiceState(
+        status: VoiceStatus.commandReady,
+        pendingExpenseCategory: ExpenseCategory.transport,
+        command: AddExpenseCommand(
+          amountPaise: 8000,
+          category: ExpenseCategory.transport,
+          note: 'auto',
+          expenseDate: testDate,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VoiceConfirmationView(
+              voiceState: state,
+              voiceController: controller,
+              onDismiss: () {
+                dismissed = true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(dismissed, isTrue);
+      expect(controller.state.status, equals(VoiceStatus.idle));
     });
   });
 }

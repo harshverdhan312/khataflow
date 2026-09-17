@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khata_flow/features/expense/domain/expense_category.dart';
 import 'package:khata_flow/features/voice/domain/voice_command.dart';
 
 void main() {
@@ -143,6 +144,63 @@ void main() {
         const cmd3 = CreateMerchantCommand(
           merchantName: 'Rahul Sabji Wala',
           upiVpa: null,
+        );
+
+        expect(cmd1, equals(cmd2));
+        expect(cmd1.hashCode, equals(cmd2.hashCode));
+        expect(cmd1, isNot(equals(cmd3)));
+      });
+    });
+
+    group('AddExpenseCommand', () {
+      final testDate = DateTime(2026, 9, 17);
+
+      test('creates valid command with integer paise, category, and note', () {
+        final command = AddExpenseCommand(
+          amountPaise: 25000,
+          category: ExpenseCategory.food,
+          note: 'lunch with friends',
+          expenseDate: testDate,
+        );
+
+        expect(command.amountPaise, equals(25000));
+        expect(command.category, equals(ExpenseCategory.food));
+        expect(command.note, equals('lunch with friends'));
+        expect(command.expenseDate, equals(testDate));
+        expect(command, isA<VoiceCommand>());
+      });
+
+      test('allows nullable category and nullable note', () {
+        final command = AddExpenseCommand(
+          amountPaise: 50000,
+          category: null,
+          note: null,
+          expenseDate: testDate,
+        );
+
+        expect(command.amountPaise, equals(50000));
+        expect(command.category, isNull);
+        expect(command.note, isNull);
+      });
+
+      test('equality and hashCode match identical AddExpenseCommand instances', () {
+        final cmd1 = AddExpenseCommand(
+          amountPaise: 25000,
+          category: ExpenseCategory.transport,
+          note: 'auto',
+          expenseDate: testDate,
+        );
+        final cmd2 = AddExpenseCommand(
+          amountPaise: 25000,
+          category: ExpenseCategory.transport,
+          note: 'auto',
+          expenseDate: testDate,
+        );
+        final cmd3 = AddExpenseCommand(
+          amountPaise: 30000,
+          category: ExpenseCategory.transport,
+          note: 'auto',
+          expenseDate: testDate,
         );
 
         expect(cmd1, equals(cmd2));

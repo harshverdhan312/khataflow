@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/voice_service.dart';
+import '../../expense/presentation/expense_providers.dart';
 import '../../ledger/presentation/ledger_providers.dart';
 import '../../merchant/presentation/merchant_providers.dart';
 import '../../settlement/presentation/settlement_providers.dart';
@@ -32,6 +33,7 @@ final voiceControllerProvider =
   final merchantRepo = ref.watch(merchantRepositoryProvider);
   final ledgerRepo = ref.watch(ledgerRepositoryProvider);
   final settlementRepo = ref.watch(settlementRepositoryProvider);
+  final expenseRepo = ref.watch(expenseRepositoryProvider);
   final resolver = ref.watch(merchantResolverProvider);
 
   return VoiceController(
@@ -40,6 +42,7 @@ final voiceControllerProvider =
     merchantRepository: merchantRepo,
     ledgerRepository: ledgerRepo,
     settlementRepository: settlementRepo,
+    expenseRepository: expenseRepo,
     merchantResolver: resolver,
   );
 });
