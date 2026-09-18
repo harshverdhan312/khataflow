@@ -5,12 +5,14 @@ import '../../merchant/domain/merchant_category.dart';
 import '../domain/semantic_voice_interpretation.dart';
 import '../domain/voice_command.dart';
 import '../domain/voice_transcript.dart';
+import '../domain/voice_understanding_source.dart';
 
 /// Lifecycle statuses of voice ledger recognition and extraction.
 enum VoiceStatus {
   idle,
   listening,
   processing,
+  aiFallback,
   ambiguousMerchant,
   commandReady,
   completed,
@@ -34,6 +36,7 @@ class VoiceState {
   final String? pendingUpiVpa;
   final String? pendingPaymentReference;
   final SemanticVoiceInterpretation? pendingInterpretation;
+  final VoiceUnderstandingSource? understandingSource;
 
   const VoiceState({
     this.status = VoiceStatus.idle,
@@ -50,14 +53,18 @@ class VoiceState {
     this.pendingUpiVpa,
     this.pendingPaymentReference,
     this.pendingInterpretation,
+    this.understandingSource,
   });
 
   bool get isListening => status == VoiceStatus.listening;
   bool get isProcessing => status == VoiceStatus.processing;
+  bool get isAiFallback => status == VoiceStatus.aiFallback;
   bool get isAmbiguousMerchant => status == VoiceStatus.ambiguousMerchant;
   bool get isCommandReady => status == VoiceStatus.commandReady;
   bool get isCompleted => status == VoiceStatus.completed;
   bool get hasError => status == VoiceStatus.error;
+  bool get isAiAssisted =>
+      understandingSource == VoiceUnderstandingSource.aiFallback;
 
   VoiceState copyWith({
     VoiceStatus? status,
@@ -74,6 +81,7 @@ class VoiceState {
     String? pendingUpiVpa,
     String? pendingPaymentReference,
     SemanticVoiceInterpretation? pendingInterpretation,
+    VoiceUnderstandingSource? understandingSource,
     bool clearTranscript = false,
     bool clearCommand = false,
     bool clearMerchant = false,
@@ -85,6 +93,7 @@ class VoiceState {
     bool clearPendingVpa = false,
     bool clearPendingPaymentRef = false,
     bool clearPendingInterpretation = false,
+    bool clearUnderstandingSource = false,
   }) {
     return VoiceState(
       status: status ?? this.status,
@@ -115,6 +124,9 @@ class VoiceState {
       pendingInterpretation: clearPendingInterpretation
           ? null
           : (pendingInterpretation ?? this.pendingInterpretation),
+      understandingSource: clearUnderstandingSource
+          ? null
+          : (understandingSource ?? this.understandingSource),
     );
   }
 
@@ -136,7 +148,8 @@ class VoiceState {
           pendingExpenseCategory == other.pendingExpenseCategory &&
           pendingUpiVpa == other.pendingUpiVpa &&
           pendingPaymentReference == other.pendingPaymentReference &&
-          pendingInterpretation == other.pendingInterpretation;
+          pendingInterpretation == other.pendingInterpretation &&
+          understandingSource == other.understandingSource;
 
   @override
   int get hashCode =>
@@ -153,9 +166,10 @@ class VoiceState {
       pendingExpenseCategory.hashCode ^
       pendingUpiVpa.hashCode ^
       pendingPaymentReference.hashCode ^
-      pendingInterpretation.hashCode;
+      pendingInterpretation.hashCode ^
+      understandingSource.hashCode;
 
   @override
   String toString() =>
-      'VoiceState(status: $status, transcript: $transcript, command: $command, resolvedMerchant: ${resolvedMerchant?.name}, candidateMerchants: ${candidateMerchants?.map((c) => c.name).toList()}, errorMessage: $errorMessage, selectedLocale: $selectedLocale, isExecuting: $isExecuting, outstanding: $outstandingPaiseToSettle, pendingCategory: $pendingCategory, pendingExpenseCategory: $pendingExpenseCategory, pendingVpa: $pendingUpiVpa, pendingRef: $pendingPaymentReference, pendingInterpretation: $pendingInterpretation)';
+      'VoiceState(status: $status, transcript: $transcript, command: $command, resolvedMerchant: ${resolvedMerchant?.name}, candidateMerchants: ${candidateMerchants?.map((c) => c.name).toList()}, errorMessage: $errorMessage, selectedLocale: $selectedLocale, isExecuting: $isExecuting, outstanding: $outstandingPaiseToSettle, pendingCategory: $pendingCategory, pendingExpenseCategory: $pendingExpenseCategory, pendingVpa: $pendingUpiVpa, pendingRef: $pendingPaymentReference, pendingInterpretation: $pendingInterpretation, understandingSource: $understandingSource)';
 }

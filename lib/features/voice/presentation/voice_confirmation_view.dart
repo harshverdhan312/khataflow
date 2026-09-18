@@ -218,14 +218,17 @@ class VoiceConfirmationView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Review Purchase',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+            const Expanded(
+              child: Text(
+                'Review Purchase',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
+            _buildAiBadge(),
           ],
         ),
         const SizedBox(height: 16),
@@ -420,14 +423,17 @@ class VoiceConfirmationView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Review Settlement',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+            const Expanded(
+              child: Text(
+                'Review Settlement',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
+            _buildAiBadge(),
           ],
         ),
         const SizedBox(height: 16),
@@ -622,14 +628,17 @@ class VoiceConfirmationView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Settle Store Ledger',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+            const Expanded(
+              child: Text(
+                'Settle Store Ledger',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
+            _buildAiBadge(),
           ],
         ),
         const SizedBox(height: 16),
@@ -847,14 +856,17 @@ class VoiceConfirmationView extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Create Store Ledger',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+            const Expanded(
+              child: Text(
+                'Create Store Ledger',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
+            _buildAiBadge(),
           ],
         ),
         const SizedBox(height: 16),
@@ -1033,6 +1045,37 @@ class VoiceConfirmationView extends StatelessWidget {
     );
   }
 
+  Widget _buildAiBadge() {
+    if (!voiceState.isAiAssisted) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.auto_awesome_rounded,
+            size: 12,
+            color: AppColors.primary,
+          ),
+          SizedBox(width: 4),
+          Text(
+            'AI-assisted understanding',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDisclaimer(String text) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1111,6 +1154,7 @@ class VoiceConfirmationView extends StatelessWidget {
                 ],
               ),
             ),
+            _buildAiBadge(),
           ],
         ),
         const SizedBox(height: 16),

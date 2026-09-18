@@ -277,7 +277,7 @@ void main() {
       expect(find.text('Could not process voice entry'), findsOneWidget);
       expect(find.text('Microphone permission is required to use Voice Ledger.'), findsOneWidget);
       expect(find.text('Try Again'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Enter Manually'), findsOneWidget);
     });
 
     testWidgets('Language toggle switches locale between English and Hindi', (tester) async {

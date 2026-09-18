@@ -108,6 +108,8 @@ class _VoiceEntrySheetState extends ConsumerState<VoiceEntrySheet> {
                 _buildListeningView(voiceState, voiceController)
               else if (voiceState.status == VoiceStatus.processing)
                 _buildProcessingView(voiceState)
+              else if (voiceState.status == VoiceStatus.aiFallback)
+                _buildAiFallbackView(voiceState, voiceController)
               else if (voiceState.status == VoiceStatus.ambiguousMerchant ||
                   voiceState.status == VoiceStatus.commandReady)
                 VoiceConfirmationView(
@@ -340,6 +342,65 @@ class _VoiceEntrySheetState extends ConsumerState<VoiceEntrySheet> {
     );
   }
 
+  Widget _buildAiFallbackView(VoiceState state, VoiceController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 24),
+        const Center(
+          child: SizedBox(
+            height: 40,
+            width: 40,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Center(
+          child: Text(
+            'Trying another way to understand that...',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        if (state.transcript?.text != null &&
+            state.transcript!.text.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              '"${state.transcript!.text}"',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                 fontSize: 13,
+                 fontStyle: FontStyle.italic,
+                 color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
+        Center(
+          child: TextButton.icon(
+            onPressed: () {
+              controller.cancelCommand();
+              Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.close_rounded, size: 18),
+            label: const Text('Cancel'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildCompletedView(VoiceState state, VoiceController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -469,7 +530,7 @@ class _VoiceEntrySheetState extends ConsumerState<VoiceEntrySheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Cancel'),
+                child: const Text('Enter Manually'),
               ),
             ),
             const SizedBox(width: 12),

@@ -17,6 +17,7 @@ import '../domain/semantic_voice_result.dart';
 import '../domain/voice_command.dart';
 import '../domain/voice_command_parser.dart';
 import '../domain/voice_transcript.dart';
+import '../domain/voice_understanding_source.dart';
 import 'voice_state.dart';
 
 /// Controller managing speech recognition interaction, parsing,
@@ -34,6 +35,8 @@ class VoiceController extends StateNotifier<VoiceState> {
   final AiVoiceFallbackService? aiFallbackService;
   final SemanticVoiceCommandResolver semanticCommandResolver;
 
+  int _activeSessionId = 0;
+
   VoiceController({
     required this.voiceService,
     required this.parser,
@@ -46,8 +49,12 @@ class VoiceController extends StateNotifier<VoiceState> {
     this.semanticCommandResolver = const SemanticVoiceCommandResolver(),
   }) : super(const VoiceState());
 
+  bool _isCurrentSession(int id) => _activeSessionId == id;
+
   /// Starts listening to microphone input in the currently selected locale.
   Future<void> startListening() async {
+    final sessionId = ++_activeSessionId;
+
     // Clear previous state and reset for fresh voice session
     state = state.copyWith(
       status: VoiceStatus.listening,
@@ -62,10 +69,13 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
       clearPendingInterpretation: true,
+      clearUnderstandingSource: true,
     );
 
     try {
       final initialized = await voiceService.initialize();
+      if (!_isCurrentSession(sessionId)) return;
+
       if (!initialized) {
         state = state.copyWith(
           status: VoiceStatus.error,
@@ -77,6 +87,8 @@ class VoiceController extends StateNotifier<VoiceState> {
       await voiceService.startListening(
         localeId: state.selectedLocale,
         onResult: (text, isFinal) {
+          if (!_isCurrentSession(sessionId)) return;
+
           final transcript = VoiceTranscript(
             text: text,
             locale: state.selectedLocale,
@@ -85,7 +97,7 @@ class VoiceController extends StateNotifier<VoiceState> {
           );
 
           if (isFinal) {
-            processTranscript(transcript);
+            processTranscript(transcript, sessionId: sessionId);
           } else {
             // Partial transcripts are UI-only (never parsed)
             state = state.copyWith(
@@ -95,6 +107,7 @@ class VoiceController extends StateNotifier<VoiceState> {
           }
         },
         onError: (error) {
+          if (!_isCurrentSession(sessionId)) return;
           state = state.copyWith(
             status: VoiceStatus.error,
             errorMessage: error,
@@ -102,9 +115,10 @@ class VoiceController extends StateNotifier<VoiceState> {
         },
       );
     } catch (e) {
+      if (!_isCurrentSession(sessionId)) return;
       state = state.copyWith(
         status: VoiceStatus.error,
-        errorMessage: e.toString(),
+        errorMessage: _sanitizeErrorMessage(e.toString()),
       );
     }
   }
@@ -125,6 +139,7 @@ class VoiceController extends StateNotifier<VoiceState> {
 
   /// Cancels listening and discards any active transcript.
   Future<void> cancelListening() async {
+    _activeSessionId++;
     try {
       await voiceService.cancelListening();
     } catch (_) {}
@@ -142,11 +157,17 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
       clearPendingInterpretation: true,
+      clearUnderstandingSource: true,
     );
   }
 
   /// Processes the final transcript through the parser and merchant resolver.
-  Future<void> processTranscript(VoiceTranscript transcript) async {
+  Future<void> processTranscript(
+    VoiceTranscript transcript, {
+    int? sessionId,
+  }) async {
+    final currentSession = sessionId ?? ++_activeSessionId;
+
     state = state.copyWith(
       status: VoiceStatus.processing,
       transcript: transcript,
@@ -160,47 +181,75 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
       clearPendingInterpretation: true,
+      clearUnderstandingSource: true,
     );
 
     // 1. Deterministic Parse
     final parseResult = parser.parse(transcript);
     if (parseResult is VoiceParseFailure) {
       if (aiFallbackService != null) {
+        state = state.copyWith(status: VoiceStatus.aiFallback);
         try {
-          final fallbackResult = await aiFallbackService!.interpret(transcript.text);
+          final fallbackResult =
+              await aiFallbackService!.interpret(transcript.text);
+          if (!_isCurrentSession(currentSession)) return;
+
           if (fallbackResult is SemanticVoiceSuccess) {
-            final activeMerchants = await merchantRepository.getActiveMerchants();
+            final activeMerchants =
+                await merchantRepository.getActiveMerchants();
+            if (!_isCurrentSession(currentSession)) return;
+
             final resolution = semanticCommandResolver.resolve(
               interpretation: fallbackResult.interpretation,
               activeMerchants: activeMerchants,
             );
+            if (!_isCurrentSession(currentSession)) return;
 
             switch (resolution) {
-              case SemanticVoiceResolved(:final command, :final resolvedMerchant):
+              case SemanticVoiceResolved(
+                  :final command,
+                  :final resolvedMerchant
+                ):
                 int? liveOutstanding;
-                if (command is SettleMerchantCommand && resolvedMerchant != null) {
-                  liveOutstanding = await ledgerRepository.getOutstandingAmount(resolvedMerchant.id);
+                if (command is SettleMerchantCommand &&
+                    resolvedMerchant != null) {
+                  liveOutstanding = await ledgerRepository
+                      .getOutstandingAmount(resolvedMerchant.id);
+                  if (!_isCurrentSession(currentSession)) return;
                 }
                 state = state.copyWith(
                   status: VoiceStatus.commandReady,
                   command: command,
                   resolvedMerchant: resolvedMerchant,
+                  understandingSource: VoiceUnderstandingSource.aiFallback,
                   outstandingPaiseToSettle: liveOutstanding,
-                  pendingCategory: command is CreateMerchantCommand ? command.category : null,
-                  pendingExpenseCategory: command is AddExpenseCommand ? command.category : null,
-                  pendingUpiVpa: command is CreateMerchantCommand ? command.upiVpa : null,
-                  pendingPaymentReference: command is RecordSettlementCommand ? command.paymentReference : null,
+                  pendingCategory: command is CreateMerchantCommand
+                      ? command.category
+                      : null,
+                  pendingExpenseCategory: command is AddExpenseCommand
+                      ? command.category
+                      : null,
+                  pendingUpiVpa: command is CreateMerchantCommand
+                      ? command.upiVpa
+                      : null,
+                  pendingPaymentReference: command is RecordSettlementCommand
+                      ? command.paymentReference
+                      : null,
                   clearCandidates: true,
                   clearError: true,
                   clearPendingInterpretation: true,
                 );
                 return;
 
-              case SemanticVoiceAmbiguous(:final candidateMerchants, :final interpretation):
+              case SemanticVoiceAmbiguous(
+                  :final candidateMerchants,
+                  :final interpretation
+                ):
                 state = state.copyWith(
                   status: VoiceStatus.ambiguousMerchant,
                   candidateMerchants: candidateMerchants,
                   pendingInterpretation: interpretation,
+                  understandingSource: VoiceUnderstandingSource.aiFallback,
                   clearMerchant: true,
                   clearCommand: true,
                   clearError: true,
@@ -210,7 +259,8 @@ class VoiceController extends StateNotifier<VoiceState> {
               case SemanticVoiceResolutionFailure(:final reason):
                 state = state.copyWith(
                   status: VoiceStatus.error,
-                  errorMessage: reason,
+                  errorMessage: _sanitizeErrorMessage(reason),
+                  understandingSource: VoiceUnderstandingSource.unresolved,
                   clearPendingInterpretation: true,
                 );
                 return;
@@ -218,24 +268,31 @@ class VoiceController extends StateNotifier<VoiceState> {
           } else if (fallbackResult is SemanticVoiceUnresolved) {
             state = state.copyWith(
               status: VoiceStatus.error,
-              errorMessage: fallbackResult.failureReason ?? parseResult.errorMessage,
+              errorMessage: _sanitizeErrorMessage(
+                  fallbackResult.failureReason ?? parseResult.errorMessage),
+              understandingSource: VoiceUnderstandingSource.unresolved,
               clearPendingInterpretation: true,
             );
             return;
           }
         } catch (e) {
+          if (!_isCurrentSession(currentSession)) return;
           state = state.copyWith(
             status: VoiceStatus.error,
-            errorMessage: 'AI voice understanding error: ${e.toString()}',
+            errorMessage:
+                "Couldn't understand that voice command. You can try again or enter it manually.",
+            understandingSource: VoiceUnderstandingSource.unresolved,
             clearPendingInterpretation: true,
           );
           return;
         }
       }
 
+      if (!_isCurrentSession(currentSession)) return;
       state = state.copyWith(
         status: VoiceStatus.error,
-        errorMessage: parseResult.errorMessage,
+        errorMessage: _sanitizeErrorMessage(parseResult.errorMessage),
+        understandingSource: VoiceUnderstandingSource.unresolved,
         clearPendingInterpretation: true,
       );
       return;
@@ -248,6 +305,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       state = state.copyWith(
         status: VoiceStatus.commandReady,
         command: command,
+        understandingSource: VoiceUnderstandingSource.deterministic,
         pendingExpenseCategory: command.category,
         clearMerchant: true,
         clearCandidates: true,
@@ -260,6 +318,7 @@ class VoiceController extends StateNotifier<VoiceState> {
     // 3. Merchant Resolution based on command type
     try {
       final activeMerchants = await merchantRepository.getActiveMerchants();
+      if (!_isCurrentSession(currentSession)) return;
 
       if (command is CreateMerchantCommand) {
         // Look up active merchants to prevent duplicate creation
@@ -273,6 +332,7 @@ class VoiceController extends StateNotifier<VoiceState> {
             state = state.copyWith(
               status: VoiceStatus.error,
               command: command,
+              understandingSource: VoiceUnderstandingSource.deterministic,
               clearMerchant: true,
               clearCandidates: true,
               clearPendingInterpretation: true,
@@ -282,6 +342,7 @@ class VoiceController extends StateNotifier<VoiceState> {
             state = state.copyWith(
               status: VoiceStatus.ambiguousMerchant,
               command: command,
+              understandingSource: VoiceUnderstandingSource.deterministic,
               candidateMerchants: candidates,
               clearMerchant: true,
               clearError: true,
@@ -291,6 +352,7 @@ class VoiceController extends StateNotifier<VoiceState> {
             state = state.copyWith(
               status: VoiceStatus.commandReady,
               command: command,
+              understandingSource: VoiceUnderstandingSource.deterministic,
               pendingCategory: command.category,
               pendingUpiVpa: command.upiVpa,
               clearMerchant: true,
@@ -320,12 +382,15 @@ class VoiceController extends StateNotifier<VoiceState> {
         case ExactMerchantMatch(:final merchant):
           int? liveOutstanding;
           if (command is SettleMerchantCommand) {
-            liveOutstanding = await ledgerRepository.getOutstandingAmount(merchant.id);
+            liveOutstanding =
+                await ledgerRepository.getOutstandingAmount(merchant.id);
+            if (!_isCurrentSession(currentSession)) return;
           }
           state = state.copyWith(
             status: VoiceStatus.commandReady,
             command: command,
             resolvedMerchant: merchant,
+            understandingSource: VoiceUnderstandingSource.deterministic,
             outstandingPaiseToSettle: liveOutstanding,
             clearCandidates: true,
             clearError: true,
@@ -335,6 +400,7 @@ class VoiceController extends StateNotifier<VoiceState> {
           state = state.copyWith(
             status: VoiceStatus.ambiguousMerchant,
             command: command,
+            understandingSource: VoiceUnderstandingSource.deterministic,
             candidateMerchants: candidates,
             clearMerchant: true,
             clearError: true,
@@ -344,16 +410,20 @@ class VoiceController extends StateNotifier<VoiceState> {
           state = state.copyWith(
             status: VoiceStatus.error,
             command: command,
+            understandingSource: VoiceUnderstandingSource.deterministic,
             clearMerchant: true,
             clearCandidates: true,
             clearPendingInterpretation: true,
-            errorMessage: 'Merchant "$query" not found. We couldn\'t find a matching active store.',
+            errorMessage:
+                'Merchant "$query" not found. We couldn\'t find a matching active store.',
           );
       }
     } catch (e) {
+      if (!_isCurrentSession(currentSession)) return;
       state = state.copyWith(
         status: VoiceStatus.error,
-        errorMessage: 'Failed to resolve merchant: ${e.toString()}',
+        errorMessage:
+            _sanitizeErrorMessage('Failed to resolve merchant: ${e.toString()}'),
         clearPendingInterpretation: true,
       );
     }
@@ -365,26 +435,34 @@ class VoiceController extends StateNotifier<VoiceState> {
       return;
     }
 
+    final currentSession = ++_activeSessionId;
+
     // Path A: Resolving ambiguous AI semantic interpretation freshly
     if (state.pendingInterpretation != null) {
       try {
         final activeMerchants = await merchantRepository.getActiveMerchants();
+        if (!_isCurrentSession(currentSession)) return;
+
         final resolution = semanticCommandResolver.resolveWithSelectedMerchant(
           interpretation: state.pendingInterpretation!,
           selectedMerchant: merchant,
           activeMerchants: activeMerchants,
         );
+        if (!_isCurrentSession(currentSession)) return;
 
         switch (resolution) {
           case SemanticVoiceResolved(:final command, :final resolvedMerchant):
             int? liveOutstanding;
             if (command is SettleMerchantCommand && resolvedMerchant != null) {
-              liveOutstanding = await ledgerRepository.getOutstandingAmount(resolvedMerchant.id);
+              liveOutstanding = await ledgerRepository
+                  .getOutstandingAmount(resolvedMerchant.id);
+              if (!_isCurrentSession(currentSession)) return;
             }
             state = state.copyWith(
               status: VoiceStatus.commandReady,
               command: command,
               resolvedMerchant: resolvedMerchant,
+              understandingSource: VoiceUnderstandingSource.aiFallback,
               outstandingPaiseToSettle: liveOutstanding,
               clearCandidates: true,
               clearError: true,
@@ -398,16 +476,20 @@ class VoiceController extends StateNotifier<VoiceState> {
           case SemanticVoiceResolutionFailure(:final reason):
             state = state.copyWith(
               status: VoiceStatus.error,
-              errorMessage: reason,
+              errorMessage: _sanitizeErrorMessage(reason),
+              understandingSource: VoiceUnderstandingSource.unresolved,
               clearCandidates: true,
               clearPendingInterpretation: true,
             );
             return;
         }
       } catch (e) {
+        if (!_isCurrentSession(currentSession)) return;
         state = state.copyWith(
           status: VoiceStatus.error,
-          errorMessage: 'Failed to resolve selected merchant: ${e.toString()}',
+          errorMessage: _sanitizeErrorMessage(
+              'Failed to resolve selected merchant: ${e.toString()}'),
+          understandingSource: VoiceUnderstandingSource.unresolved,
           clearCandidates: true,
           clearPendingInterpretation: true,
         );
@@ -433,12 +515,15 @@ class VoiceController extends StateNotifier<VoiceState> {
 
     int? liveOutstanding;
     if (state.command is SettleMerchantCommand) {
-      liveOutstanding = await ledgerRepository.getOutstandingAmount(merchant.id);
+      liveOutstanding =
+          await ledgerRepository.getOutstandingAmount(merchant.id);
+      if (!_isCurrentSession(currentSession)) return;
     }
 
     state = state.copyWith(
       status: VoiceStatus.commandReady,
       resolvedMerchant: merchant,
+      understandingSource: VoiceUnderstandingSource.deterministic,
       outstandingPaiseToSettle: liveOutstanding,
       clearCandidates: true,
       clearError: true,
@@ -468,6 +553,7 @@ class VoiceController extends StateNotifier<VoiceState> {
 
   /// Cancels the current command without mutating the database and returns to idle.
   void cancelCommand() {
+    _activeSessionId++;
     state = state.copyWith(
       status: VoiceStatus.idle,
       clearCommand: true,
@@ -481,6 +567,7 @@ class VoiceController extends StateNotifier<VoiceState> {
       clearPendingVpa: true,
       clearPendingPaymentRef: true,
       clearPendingInterpretation: true,
+      clearUnderstandingSource: true,
     );
   }
 
@@ -518,7 +605,8 @@ class VoiceController extends StateNotifier<VoiceState> {
         if (state.resolvedMerchant == null) return false;
         final merchant = state.resolvedMerchant!;
 
-        final unsettled = await ledgerRepository.getUnsettledPurchases(merchant.id);
+        final unsettled =
+            await ledgerRepository.getUnsettledPurchases(merchant.id);
         if (unsettled.isEmpty) {
           state = state.copyWith(
             isExecuting: false,
@@ -532,15 +620,18 @@ class VoiceController extends StateNotifier<VoiceState> {
         await settlementRepository.recordSettlement(
           merchantId: merchant.id,
           purchaseIds: purchaseIds,
-          paymentReference: state.pendingPaymentReference ?? command.paymentReference,
+          paymentReference:
+              state.pendingPaymentReference ?? command.paymentReference,
         );
       } else if (command is SettleMerchantCommand) {
         if (state.resolvedMerchant == null) return false;
         final merchant = state.resolvedMerchant!;
 
         // Race condition protection: Re-read live outstanding & unsettled purchases
-        final liveOutstanding = await ledgerRepository.getOutstandingAmount(merchant.id);
-        final unsettled = await ledgerRepository.getUnsettledPurchases(merchant.id);
+        final liveOutstanding =
+            await ledgerRepository.getOutstandingAmount(merchant.id);
+        final unsettled =
+            await ledgerRepository.getUnsettledPurchases(merchant.id);
 
         if (unsettled.isEmpty || liveOutstanding <= 0) {
           state = state.copyWith(
@@ -590,7 +681,8 @@ class VoiceController extends StateNotifier<VoiceState> {
           state = state.copyWith(
             isExecuting: false,
             status: VoiceStatus.error,
-            errorMessage: 'Merchant "${resolution.merchant.name}" already exists.',
+            errorMessage:
+                'Merchant "${resolution.merchant.name}" already exists.',
           );
           return false;
         }
@@ -665,6 +757,30 @@ class VoiceController extends StateNotifier<VoiceState> {
 
   /// Resets the controller back to idle.
   void reset() {
+    _activeSessionId++;
     state = VoiceState(selectedLocale: state.selectedLocale);
   }
+
+  /// Sanitizes technical error messages to prevent leaking stack traces, HTTP codes, or provider secrets.
+  String _sanitizeErrorMessage(String? raw) {
+    if (raw == null || raw.trim().isEmpty) {
+      return "Couldn't understand that voice command. You can try again or enter it manually.";
+    }
+    final lower = raw.toLowerCase();
+    if (lower.contains('socketexception') ||
+        lower.contains('timeoutexception') ||
+        lower.contains('httpexception') ||
+        lower.contains('clientexception') ||
+        lower.contains('handshakeexception') ||
+        lower.contains('gemini') ||
+        lower.contains('api_key') ||
+        lower.contains('apikey') ||
+        lower.contains('500') ||
+        lower.contains('format_exception') ||
+        lower.contains('exception:')) {
+      return "Couldn't understand that voice command. You can try again or enter it manually.";
+    }
+    return raw;
+  }
 }
+
