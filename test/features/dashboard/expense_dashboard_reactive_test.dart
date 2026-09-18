@@ -3,18 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khata_flow/core/utils/currency_formatter.dart';
-import 'package:khata_flow/features/dashboard/domain/dashboard_summary.dart';
-import 'package:khata_flow/features/dashboard/presentation/dashboard_providers.dart';
-import 'package:khata_flow/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:khata_flow/features/expense/domain/expense.dart';
 import 'package:khata_flow/features/expense/domain/expense_category.dart';
 import 'package:khata_flow/features/expense/presentation/expense_providers.dart';
-import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
+import 'package:khata_flow/features/expense/presentation/screens/expenses_tab_screen.dart';
 import 'package:khata_flow/shared/models/sync_enums.dart';
 
 void main() {
-  group('Dashboard Expense End-to-End Reactive Tests', () {
-    testWidgets('Dashboard reactively reflects Create -> Edit -> Delete without manual reload', (tester) async {
+  group('ExpensesTabScreen End-to-End Reactive Tests', () {
+    testWidgets('ExpensesTabScreen reactively reflects Create -> Edit -> Delete without manual reload', (tester) async {
       tester.view.physicalSize = const Size(1200, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
@@ -27,13 +24,6 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          dashboardSummaryStreamProvider.overrideWith((ref) => Stream.value(
-                const DashboardSummary(
-                  totalOutstandingPaise: 0,
-                  merchantSummaries: [],
-                ),
-              )),
-          inactiveMerchantsStreamProvider.overrideWith((ref) => Stream.value([])),
           expensesStreamProvider.overrideWith((ref) => expenseStreamController.stream),
         ],
       );
@@ -42,7 +32,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: const MaterialApp(
-            home: DashboardScreen(),
+            home: ExpensesTabScreen(),
           ),
         ),
       );
@@ -53,7 +43,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      expect(find.text('No expenses this month'), findsOneWidget);
+      expect(find.text('No expenses recorded yet'), findsOneWidget);
 
       final now = DateTime.now();
 
@@ -74,8 +64,8 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // Dashboard updates reactively to ₹200
-      expect(find.text('No expenses this month'), findsNothing);
+      // Expenses tab updates reactively to ₹200
+      expect(find.text('No expenses recorded yet'), findsNothing);
       expect(find.text('THIS MONTH'), findsOneWidget);
       expect(find.text(CurrencyFormatter.formatPaise(20000)), findsWidgets);
       expect(find.text('Burger'), findsOneWidget);
@@ -97,7 +87,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // Dashboard updates reactively to ₹500 and Shopping
+      // Expenses tab updates reactively to ₹500 and Shopping
       expect(find.text(CurrencyFormatter.formatPaise(50000)), findsWidgets);
       expect(find.text('Sneakers'), findsOneWidget);
       expect(find.text('Shopping'), findsWidgets);
@@ -108,8 +98,8 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      // Dashboard updates reactively back to empty state
-      expect(find.text('No expenses this month'), findsOneWidget);
+      // Expenses tab updates reactively back to empty state
+      expect(find.text('No expenses recorded yet'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
@@ -117,3 +107,4 @@ void main() {
     });
   });
 }
+

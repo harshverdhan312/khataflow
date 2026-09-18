@@ -34,10 +34,9 @@ void main() {
         child: const KhataFlowApp(),
       ),
     );
-    await tester.pump();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.text('KhataFlow'), findsOneWidget);
-    expect(find.text('No store tabs yet'), findsOneWidget);
+    expect(find.text('KhataFlow'), findsWidgets);
+    expect(find.text('Tap to speak / add something'), findsOneWidget);
   });
 }

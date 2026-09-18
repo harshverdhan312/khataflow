@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
-import '../../expense/presentation/expense_history_screen.dart';
-import '../../transactions/presentation/transactions_screen.dart';
+import '../../expense/presentation/screens/expenses_tab_screen.dart';
+import '../../home/presentation/home_screen.dart';
 
-final mainNavIndexProvider = StateProvider<int>((ref) => 0);
+final mainNavIndexProvider = StateProvider<int>((ref) => 1);
 
 class MainNavScreen extends ConsumerStatefulWidget {
   final int initialIndex;
 
   const MainNavScreen({
     super.key,
-    this.initialIndex = 0,
+    this.initialIndex = 1,
   });
 
   @override
@@ -22,14 +22,14 @@ class MainNavScreen extends ConsumerStatefulWidget {
 class _MainNavScreenState extends ConsumerState<MainNavScreen> {
   final List<Widget> _screens = const [
     DashboardScreen(),
-    ExpenseHistoryScreen(),
-    TransactionsScreen(),
+    HomeScreen(),
+    ExpensesTabScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialIndex != 0) {
+    if (widget.initialIndex != 1) {
       Future.microtask(() {
         if (mounted) {
           ref.read(mainNavIndexProvider.notifier).state = widget.initialIndex;
@@ -65,23 +65,23 @@ class _MainNavScreenState extends ConsumerState<MainNavScreen> {
           backgroundColor: AppColors.cardDark,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.storefront_outlined),
               activeIcon: Icon(Icons.storefront_rounded),
+              label: 'Ledger',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.mic_none_rounded),
+              activeIcon: Icon(Icons.mic_rounded),
               label: 'Home',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long_outlined),
               activeIcon: Icon(Icons.receipt_long_rounded),
               label: 'Expenses',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.payments_outlined),
-              activeIcon: Icon(Icons.payments_rounded),
-              label: 'Transactions',
             ),
           ],
         ),

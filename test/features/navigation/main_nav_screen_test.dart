@@ -11,7 +11,7 @@ import 'package:khata_flow/features/transactions/presentation/transactions_provi
 
 void main() {
   group('MainNavScreen Bottom Navigation Tests', () {
-    testWidgets('renders Home, Expenses, and Transactions tabs and switches IndexedStack', (tester) async {
+    testWidgets('renders Ledger, Home, and Expenses tabs and switches IndexedStack with Home as default', (tester) async {
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -42,37 +42,37 @@ void main() {
       await tester.pumpWidget(app);
       await tester.pumpAndSettle();
 
+      expect(find.text('Ledger'), findsOneWidget);
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Expenses'), findsOneWidget);
-      expect(find.text('Transactions'), findsOneWidget);
 
-      // Initially on Dashboard
+      // Initially on Home (index 1)
       final indexedStackFinder = find.byType(IndexedStack);
       expect(indexedStackFinder, findsOneWidget);
       final indexedStack = tester.widget<IndexedStack>(indexedStackFinder);
-      expect(indexedStack.index, 0);
+      expect(indexedStack.index, 1);
+      expect(find.text('Tap to speak / add something'), findsOneWidget);
 
-      // Tap Expenses in bottom bar
-      await tester.tap(find.text('Expenses'));
+      // Tap Ledger in bottom bar (index 0)
+      await tester.tap(find.text('Ledger'));
       await tester.pumpAndSettle();
 
       final updatedIndexedStack1 = tester.widget<IndexedStack>(indexedStackFinder);
-      expect(updatedIndexedStack1.index, 1);
-      expect(find.text('No expenses recorded yet'), findsOneWidget);
+      expect(updatedIndexedStack1.index, 0);
 
-      // Tap Transactions in bottom bar
-      await tester.tap(find.text('Transactions'));
+      // Tap Expenses in bottom bar (index 2)
+      await tester.tap(find.text('Expenses'));
       await tester.pumpAndSettle();
 
       final updatedIndexedStack2 = tester.widget<IndexedStack>(indexedStackFinder);
       expect(updatedIndexedStack2.index, 2);
 
-      // Tap Home in bottom bar
+      // Tap Home in bottom bar (index 1)
       await tester.tap(find.text('Home'));
       await tester.pumpAndSettle();
 
       final updatedIndexedStack3 = tester.widget<IndexedStack>(indexedStackFinder);
-      expect(updatedIndexedStack3.index, 0);
+      expect(updatedIndexedStack3.index, 1);
     });
   });
 }

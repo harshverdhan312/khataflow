@@ -10,6 +10,8 @@ import '../../domain/models/spending_insight.dart';
 import '../expense_providers.dart';
 import '../providers/spending_insights_provider.dart';
 import '../utils/spending_insight_presenter.dart';
+import '../widgets/category_spending_chart.dart';
+import '../widgets/spending_trend_chart.dart';
 
 class SpendingInsightsScreen extends ConsumerWidget {
   const SpendingInsightsScreen({super.key});
@@ -102,16 +104,40 @@ class SpendingInsightsScreen extends ConsumerWidget {
 
               if (analytics != null && analytics.hasCurrentMonthExpenses) ...[
                 _buildSummaryHeader(analytics),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
               ],
 
-              // Deterministic M7 Insight Cards
-              ...spendingInsights.insights.map((insight) {
-                return _buildInsightCard(insight);
-              }),
+              // 1. Spending Trend (Line Chart)
+              if (trends != null) ...[
+                SpendingTrendChart(trends: trends),
+                const SizedBox(height: 16),
+              ],
 
-              // Separated M8 AI Insights Section
-              const SizedBox(height: 24),
+              // 2. Category Spending (Horizontal Bar Chart)
+              if (analytics != null && analytics.categoryTotals.isNotEmpty) ...[
+                CategorySpendingChart(categoryTotals: analytics.categoryTotals),
+                const SizedBox(height: 16),
+              ],
+
+              // 3. Deterministic M7 Insight Cards
+              if (spendingInsights.insights.isNotEmpty) ...[
+                const Text(
+                  'RULE-BASED INSIGHTS',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    color: AppColors.textSecondaryDark,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...spendingInsights.insights.map((insight) {
+                  return _buildInsightCard(insight);
+                }),
+                const SizedBox(height: 16),
+              ],
+
+              // 4. Separated M8 AI Insights Section
               _buildAiSection(
                 context,
                 ref,

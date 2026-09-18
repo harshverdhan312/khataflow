@@ -83,7 +83,7 @@ void main() {
         expect(expenseCmd.amountPaise, equals(25000));
         expect(expenseCmd.category, equals(ExpenseCategory.food));
         expect(expenseCmd.note, isNull);
-      });…\customer-first-ledger > flutter test t
+      });
 
       test('parses "I spent ₹250 on food" into AddExpenseCommand with Food category', () {
         final result = parseText('I spent ₹250 on food');

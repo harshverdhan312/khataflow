@@ -37,6 +37,7 @@ void main() {
           child: const KhataFlowApp(),
         ),
       );
+      await tester.pumpAndSettle();
 
       final materialApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
       expect(materialApp.themeMode, equals(ThemeMode.dark));

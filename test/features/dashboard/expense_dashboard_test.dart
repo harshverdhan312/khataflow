@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:khata_flow/core/utils/currency_formatter.dart';
 import 'package:khata_flow/features/dashboard/domain/dashboard_summary.dart';
 import 'package:khata_flow/features/dashboard/domain/expense_dashboard_summary.dart';
 import 'package:khata_flow/features/dashboard/presentation/dashboard_providers.dart';
 import 'package:khata_flow/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:khata_flow/features/expense/domain/expense.dart';
 import 'package:khata_flow/features/expense/domain/expense_category.dart';
-import 'package:khata_flow/features/expense/presentation/expense_detail_sheet.dart';
 import 'package:khata_flow/features/expense/presentation/expense_providers.dart';
 import 'package:khata_flow/features/merchant/presentation/merchant_providers.dart';
-import 'package:khata_flow/features/navigation/presentation/main_nav_screen.dart';
 import 'package:khata_flow/shared/models/sync_enums.dart';
 
 void main() {
@@ -166,8 +163,8 @@ void main() {
     });
   });
 
-  group('DashboardScreen Expense Integration Widget Tests', () {
-    testWidgets('renders monthly empty state when no expenses exist in current month', (tester) async {
+  group('DashboardScreen Clean Ledger Integration Tests', () {
+    testWidgets('DashboardScreen does NOT render spending overview or expense sections', (tester) async {
       tester.view.physicalSize = const Size(800, 2000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -194,128 +191,12 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      expect(find.text('Spending Overview'), findsOneWidget);
-      expect(find.text('No expenses this month'), findsOneWidget);
-      expect(find.text('Start tracking your spending to see your monthly overview here.'), findsOneWidget);
-      expect(find.text('View Expenses'), findsOneWidget);
-    });
-
-    testWidgets('View Expenses button switches mainNavIndexProvider to 1', (tester) async {
-      tester.view.physicalSize = const Size(800, 2000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final container = ProviderContainer(
-        overrides: [
-          dashboardSummaryStreamProvider.overrideWith((ref) => Stream.value(
-                const DashboardSummary(
-                  totalOutstandingPaise: 0,
-                  merchantSummaries: [],
-                ),
-              )),
-          inactiveMerchantsStreamProvider.overrideWith((ref) => Stream.value([])),
-          expensesStreamProvider.overrideWith((ref) => Stream.value([])),
-        ],
-      );
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(
-            home: DashboardScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      expect(container.read(mainNavIndexProvider), 0);
-
-      await tester.tap(find.text('View Expenses'));
-      await tester.pump();
-      await tester.pump();
-
-      expect(container.read(mainNavIndexProvider), 1);
-    });
-
-    testWidgets('renders spending overview card, category breakdown and recent expenses preview', (tester) async {
-      tester.view.physicalSize = const Size(800, 2000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final now = DateTime.now();
-      final sampleExpenses = [
-        Expense(
-          id: 'exp_food',
-          amountPaise: 425000,
-          category: ExpenseCategory.food,
-          note: 'Dinner with family',
-          expenseDate: DateTime(now.year, now.month, 5, 20, 0),
-          createdAt: now,
-          updatedAt: now,
-          syncStatus: SyncStatus.pending,
-        ),
-        Expense(
-          id: 'exp_transport',
-          amountPaise: 210000,
-          category: ExpenseCategory.transport,
-          note: 'Monthly metro pass',
-          expenseDate: DateTime(now.year, now.month, 6, 9, 30),
-          createdAt: now,
-          updatedAt: now,
-          syncStatus: SyncStatus.pending,
-        ),
-      ];
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            dashboardSummaryStreamProvider.overrideWith((ref) => Stream.value(
-                  const DashboardSummary(
-                    totalOutstandingPaise: 0,
-                    merchantSummaries: [],
-                  ),
-                )),
-            inactiveMerchantsStreamProvider.overrideWith((ref) => Stream.value([])),
-            expensesStreamProvider.overrideWith((ref) => Stream.value(sampleExpenses)),
-          ],
-          child: const MaterialApp(
-            home: DashboardScreen(),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-      await tester.pumpAndSettle();
-
-      // Total spent: ₹6,350 (425000 + 210000 = 635000 paise)
-      expect(find.text('THIS MONTH'), findsOneWidget);
-      expect(find.text(CurrencyFormatter.formatPaise(635000)), findsOneWidget);
-      expect(find.text('Total expenses (2 records)'), findsOneWidget);
-
-      // Category breakdown & Insights
-      expect(find.text('Spending by Category'), findsOneWidget);
-      expect(find.text('Spending Insights'), findsOneWidget);
-      expect(find.text('Food'), findsAtLeastNWidgets(2)); // in breakdown, insights, and recent preview
-      expect(find.text(CurrencyFormatter.formatPaise(425000)), findsAtLeastNWidgets(2));
-      expect(find.text('Transport'), findsAtLeastNWidgets(2));
-      expect(find.text(CurrencyFormatter.formatPaise(210000)), findsAtLeastNWidgets(2));
-
-      // Recent expenses
-      expect(find.text('Recent Expenses'), findsOneWidget);
-      expect(find.text('Dinner with family'), findsOneWidget);
-      expect(find.text('Monthly metro pass'), findsOneWidget);
-      expect(find.text('View All'), findsOneWidget);
-      expect(find.text('View All Expenses'), findsOneWidget);
-
-      // Tapping an expense in preview opens ExpenseDetailSheet
-      await tester.tap(find.text('Dinner with family'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(ExpenseDetailSheet), findsOneWidget);
+      // Ledger tab should purely focus on Store tabs & dues, no expenses
+      expect(find.text('Spending Overview'), findsNothing);
+      expect(find.text('No expenses this month'), findsNothing);
+      expect(find.text('View Expenses'), findsNothing);
+      expect(find.text('Your Store Tabs'), findsOneWidget);
     });
   });
 }
+
