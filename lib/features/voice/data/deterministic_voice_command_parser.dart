@@ -219,8 +219,16 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
       if (lower.contains(marker)) return true;
     }
 
-    if (lower.startsWith('pay ') || lower.startsWith('paid ')) {
-      if (lower.contains(' for ') && !lower.contains(' to ') && !lower.contains(' with ')) {
+    if (lower.startsWith('pay ') ||
+        lower.startsWith('paid ') ||
+        lower.startsWith('i pay ') ||
+        lower.startsWith('i paid ') ||
+        lower.startsWith("i've paid ") ||
+        lower.startsWith('ive paid ') ||
+        lower.startsWith('i have paid ')) {
+      if ((lower.contains(' for ') || lower.contains(' on ')) &&
+          !lower.contains(' to ') &&
+          !lower.contains(' with ')) {
         return false;
       }
       return true;
@@ -300,7 +308,7 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
   ) {
     // Pattern 1: English "Paid / Pay / Settle <amount> [to/with] <merchant>"
     final englishMatch = RegExp(
-      r'^(?:paid|pay|settle)\s+([₹\$\d\.,\w\s]+?)\s+(?:to|with)\s+(.+?)(?:\s+(?:reference|utr|ref|txn).*|$)',
+      r'^(?:i\s+paid|i\x27ve\s+paid|ive\s+paid|i\s+have\s+paid|i\s+pay|paid|pay|settle)\s+([₹\$\d\.,\w\s]+?)\s+(?:to|with)\s+(.+?)(?:\s+(?:reference|utr|ref|txn).*|$)',
       caseSensitive: false,
     ).firstMatch(workingText);
 
@@ -405,16 +413,31 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
       if (lower.contains(kw)) return true;
     }
 
-    if (lower.startsWith('spent ') || lower.startsWith('spend ')) {
+    final isSpentPrefix = RegExp(
+      r'^(?:i\x27ve\s+spent|ive\s+spent|i\s+have\s+spent|i\s+spent|i\s+spend|spent|spend)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+    if (isSpentPrefix) {
       return true;
     }
 
-    if (lower.startsWith('bought ') &&
-        (lower.contains(' for ') || lower.contains(' of '))) {
+    final isBoughtPrefix = RegExp(
+      r'^(?:i\x27ve\s+bought|ive\s+bought|i\s+have\s+bought|i\s+bought|bought)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+    if (isBoughtPrefix &&
+        (lower.contains(' for ') || lower.contains(' of ') || lower.contains(' on '))) {
       return true;
     }
 
-    if (lower.startsWith('paid ') && lower.contains(' for ')) {
+    final isPaidPrefix = RegExp(
+      r'^(?:i\x27ve\s+paid|ive\s+paid|i\s+have\s+paid|i\s+paid|i\s+pay|paid|pay)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+    if (isPaidPrefix &&
+        (lower.contains(' for ') || lower.contains(' on ')) &&
+        !lower.contains(' to ') &&
+        !lower.contains(' with ')) {
       return true;
     }
 
@@ -453,6 +476,11 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
     final lower = text.toLowerCase().trim();
     if (lower.startsWith('spent') ||
         lower.startsWith('spend') ||
+        lower.startsWith('i spent') ||
+        lower.startsWith("i've spent") ||
+        lower.startsWith('ive spent') ||
+        lower.startsWith('i have spent') ||
+        lower.startsWith('i spend') ||
         lower.startsWith('expense') ||
         lower.contains('kharch') ||
         lower.contains('खर्च')) {
@@ -511,7 +539,7 @@ class DeterministicVoiceCommandParser implements VoiceCommandParser {
     // Remove command verbs and syntax prepositions
     working = working.replaceAll(
       RegExp(
-        r'\b(?:spent|spend|add\s+an\s+expense\s+of|add\s+an\s+expense\s+for|add\s+an\s+expense|add\s+expense\s+of|add\s+expense\s+for|add\s+expense|personal\s+expense|expense\s+of|expense\s+for|expense|paid|bought|buy|on|for|of|pe|ke|ka|ki|par|kharch\s+kiye|kharch\s+kiya|kharch\s+hua|kharch\s+hue|kharch\s+ho\s+gaya|kharch\s+ho\s+gaye|kharcha\s+kiya|kharcha\s+hua|kharcha|kharch|liye|liya|li|se|dukaan\s+se|dukan\s+se|a|an|the)\b',
+        r'\b(?:i\x27ve\s+spent|ive\s+spent|i\s+have\s+spent|i\s+spent|i\s+spend|i\x27ve\s+paid|ive\s+paid|i\s+have\s+paid|i\s+paid|i\s+pay|i\x27ve\s+bought|ive\s+bought|i\s+have\s+bought|i\s+bought|i\x27ve|ive|i\s+have|i|spent|spend|add\s+an\s+expense\s+of|add\s+an\s+expense\s+for|add\s+an\s+expense|add\s+expense\s+of|add\s+expense\s+for|add\s+expense|personal\s+expense|expense\s+of|expense\s+for|expense|paid|bought|buy|on|for|of|pe|ke|ka|ki|par|kharch\s+kiye|kharch\s+kiya|kharch\s+hua|kharch\s+hue|kharch\s+ho\s+gaya|kharch\s+ho\s+gaye|kharcha\s+kiya|kharcha\s+hua|kharcha|kharch|liye|liya|li|se|dukaan\s+se|dukan\s+se|a|an|the)\b',
         caseSensitive: false,
       ),
       ' ',

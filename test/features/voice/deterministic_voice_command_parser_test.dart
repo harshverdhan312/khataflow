@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khata_flow/features/expense/domain/expense_category.dart';
 import 'package:khata_flow/features/merchant/domain/merchant_category.dart';
 import 'package:khata_flow/features/voice/data/deterministic_voice_command_parser.dart';
 import 'package:khata_flow/features/voice/domain/voice_command.dart';
@@ -343,6 +344,71 @@ void main() {
       expect(cmd.merchantName, equals('Amit Dairy'));
       expect(cmd.category, equals(MerchantCategory.milk));
       expect(cmd.upiVpa, equals('amit@paytm'));
+    });
+  });
+
+  group('Cross-Command Architecture & First-Person Preservation Tests', () {
+    test('Sharma ki dukaan se doodh liya 60 ka -> AddPurchaseCommand', () {
+      final result = parser.parse(makeTranscript('Sharma ki dukaan se doodh liya 60 ka'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as AddPurchaseCommand;
+      expect(cmd.merchantName, equals('Sharma'));
+      expect(cmd.totalAmountPaise, equals(6000));
+    });
+
+    test('Gupta ko 500 de diye -> RecordSettlementCommand', () {
+      final result = parser.parse(makeTranscript('Gupta ko 500 de diye'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as RecordSettlementCommand;
+      expect(cmd.merchantName, equals('Gupta'));
+      expect(cmd.amountPaise, equals(50000));
+    });
+
+    test('Sharma ki dukaan add karo -> CreateMerchantCommand', () {
+      final result = parser.parse(makeTranscript('Sharma ki dukaan add karo'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as CreateMerchantCommand;
+      expect(cmd.merchantName, equals('Sharma'));
+    });
+
+    test('Food pe 250 kharch kiye -> AddExpenseCommand', () {
+      final result = parser.parse(makeTranscript('Food pe 250 kharch kiye'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+      expect(cmd.amountPaise, equals(25000));
+      expect(cmd.category, equals(ExpenseCategory.food));
+    });
+
+    test('Spent 250 rupees on food -> AddExpenseCommand', () {
+      final result = parser.parse(makeTranscript('Spent 250 rupees on food'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+      expect(cmd.amountPaise, equals(25000));
+      expect(cmd.category, equals(ExpenseCategory.food));
+    });
+
+    test('I spent 250 rupees on food -> AddExpenseCommand', () {
+      final result = parser.parse(makeTranscript('I spent 250 rupees on food'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+      expect(cmd.amountPaise, equals(25000));
+      expect(cmd.category, equals(ExpenseCategory.food));
+    });
+
+    test('I paid 500 to Sharma -> RecordSettlementCommand', () {
+      final result = parser.parse(makeTranscript('I paid 500 to Sharma'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as RecordSettlementCommand;
+      expect(cmd.merchantName, equals('Sharma'));
+      expect(cmd.amountPaise, equals(50000));
+    });
+
+    test('I paid 250 rupees for food -> AddExpenseCommand', () {
+      final result = parser.parse(makeTranscript('I paid 250 rupees for food'));
+      expect(result, isA<VoiceParseSuccess>());
+      final cmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+      expect(cmd.amountPaise, equals(25000));
+      expect(cmd.category, equals(ExpenseCategory.food));
     });
   });
 }

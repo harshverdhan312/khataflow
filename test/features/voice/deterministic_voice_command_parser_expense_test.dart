@@ -75,6 +75,87 @@ void main() {
         expect(expenseCmd.category, equals(ExpenseCategory.food));
         expect(expenseCmd.note, equals('lunch'));
       });
+
+      test('parses "I spent 250 rupees on food" into AddExpenseCommand with Food category and null note', () {
+        final result = parseText('I spent 250 rupees on food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });…\customer-first-ledger > flutter test t
+
+      test('parses "I spent ₹250 on food" into AddExpenseCommand with Food category', () {
+        final result = parseText('I spent ₹250 on food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "I spent 250 on food" into AddExpenseCommand with Food category', () {
+        final result = parseText('I spent 250 on food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "I spent 100 rupees on food" into AddExpenseCommand with ₹100 Food category', () {
+        final result = parseText('I spent 100 rupees on food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(10000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "I\'ve spent 250 rupees on food" into AddExpenseCommand with Food category', () {
+        final result = parseText("I've spent 250 rupees on food");
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "I paid 250 rupees for food" into AddExpenseCommand with Food category', () {
+        final result = parseText('I paid 250 rupees for food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "I paid 250 rupees on food" into AddExpenseCommand with Food category', () {
+        final result = parseText('I paid 250 rupees on food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "Spent 250 rupees on food" into AddExpenseCommand with Food category', () {
+        final result = parseText('Spent 250 rupees on food');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, isNull);
+      });
+
+      test('parses "I spent 250 on lunch" preserving "lunch" as note with Food category', () {
+        final result = parseText('I spent 250 on lunch');
+        expect(result, isA<VoiceParseSuccess>());
+        final expenseCmd = (result as VoiceParseSuccess).command as AddExpenseCommand;
+        expect(expenseCmd.amountPaise, equals(25000));
+        expect(expenseCmd.category, equals(ExpenseCategory.food));
+        expect(expenseCmd.note, equals('lunch'));
+      });
     });
 
     group('Hinglish Commands', () {
